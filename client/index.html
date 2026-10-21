@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Griha Saathi — Trustworthy Rental Housing for Bharat</title>
+  <meta name="description"
+    content="Griha Saathi connects genuine tenants and authentic landlords across Jammu & Kashmir, Haryana, Himachal Pradesh, Delhi, and Punjab through authoritative land-registry cross-checks and physical verification." />
+  <!-- Fonts: Comic Sans MS Primary, Noto Sans Devanagari (Multilingual Fallback) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231B4332'><path d='M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z'/></svg>" />
+  <script>
+    (function () {
+      var port = window.location.port || '';
+      var isFileProto = window.location.protocol === 'file:';
+      var isVitePort = port === '3000';
+
+      // 1. If on Vite dev server (port 3000) and user typed /client/index.html, redirect cleanly to root
+      if (isVitePort && window.location.pathname.includes('/client/index.html')) {
+        window.location.replace('/' + window.location.hash);
+        return;
+      }
+
+      // 2. If accessed via Live Server (port 5500) or file:// protocol
+      var isLiveServer = port === '5500' || isFileProto || (!isVitePort && window.location.pathname.includes('/client/index.html'));
+
+      if (isLiveServer) {
+        var checkAndConnect = function () {
+          fetch('http://localhost:3000/api/health', { method: 'GET', mode: 'cors' })
+            .then(function (res) {
+              if (res.ok) {
+                window.location.replace('http://localhost:3000/' + window.location.hash);
+              } else {
+                renderOfflineNotice();
+              }
+            })
+            .catch(function () {
+              renderOfflineNotice();
+            });
+        };
+
+        function renderOfflineNotice() {
+          var root = document.getElementById('root');
+          if (!root) return;
+          root.innerHTML = `
+            <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999999; background: #FAF9F6; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Comic Sans MS', 'Comic Sans', cursive, sans-serif; padding: 1.5rem; box-sizing: border-box;">
+              <div style="background: #FFFFFF; border: 1px solid #E1E6E2; border-radius: 20px; padding: 2.25rem; max-width: 580px; width: 100%; box-shadow: 0 16px 36px rgba(16, 38, 26, 0.08); text-align: center;">
+                <div style="width: 56px; height: 56px; background: #EBF3EE; color: #1B4332; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 1rem;">🏠</div>
+                <h2 style="font-family: 'Comic Sans MS', 'Comic Sans', cursive, sans-serif; color: #10261A; font-size: 1.5rem; margin: 0 0 0.5rem; font-weight: 700;">Griha Saathi Platform</h2>
+                <p style="color: #4A5568; font-size: 0.95rem; line-height: 1.6; margin: 0 0 1.25rem;">
+                  Modern single-page applications cannot run directly from <code>file://</code> protocol. The Griha Saathi development server is currently offline on <code>localhost:3000</code>.
+                </p>
+                <div style="background: #19201C; color: #DCFCE7; font-family: 'Comic Sans MS', 'Comic Sans', cursive, sans-serif; padding: 0.95rem 1.15rem; border-radius: 10px; text-align: left; font-size: 0.88rem; margin-bottom: 1.25rem; line-height: 1.6;">
+                  <div style="color: #91A098; font-size: 0.8rem;"># In your project terminal, run:</div>
+                  <div style="font-weight: bold; color: #52B788;">npm.cmd run dev</div>
+                  <div style="color: #91A098; font-size: 0.78rem; margin-top: 4px;">(or double-click <strong>start.cmd</strong> in the project folder)</div>
+                </div>
+                <div id="reconnect-status" style="font-size: 0.84rem; color: #B45309; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                  <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #F59E0B; animation: pulse 1.5s infinite;"></span>
+                  Waiting for server on http://localhost:3000 (checking automatically)...
+                </div>
+              </div>
+            </div>
+          `;
+          // Retry checking every 2 seconds
+          setTimeout(checkAndConnect, 2000);
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', checkAndConnect);
+        } else {
+          checkAndConnect();
+        }
+      }
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

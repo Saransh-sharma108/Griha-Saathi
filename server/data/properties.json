@@ -1,0 +1,68 @@
+[
+  {
+    "id": "prop_gurugram_sector57",
+    "title": "Spacious 2BHK Floor in Sector 57, Gurugram",
+    "description": "Freshly painted 2 BHK floor near Huda City Centre with dedicated parking.",
+    "state": "Haryana",
+    "city": "Gurugram",
+    "locality": "Sector 57",
+    "pincode": "122003",
+    "propertyType": "2bhk",
+    "bedrooms": 2,
+    "bathrooms": 2,
+    "areaSqFt": 1250,
+    "rentPerMonth": 32000,
+    "securityDeposit": 64000,
+    "maintenanceCharges": 2500,
+    "leaseTerms": "11 months standard lease.",
+    "furnishing": "semi_furnished",
+    "tenantPreference": "family",
+    "amenities": [
+      "Power Backup",
+      "Lift",
+      "Dedicated Parking",
+      "Security Guard"
+    ],
+    "photos": [
+      "/uploads/photos/sample_living.jpg"
+    ],
+    "documents": [
+      {
+        "id": "doc_4ae5a984-91b",
+        "documentType": "jamabandi",
+        "filename": "doc_4ae5a984-91b.pdf",
+        "originalFilename": "jamabandi_title_deed.pdf",
+        "fileSize": 43,
+        "mimeType": "application/pdf",
+        "sha256Hash": "b39575bc1099e297f2870d7c174236becf3a2e0826b399a8725e3cb4580124aa",
+        "documentHash": "b39575bc1099e297f2870d7c174236becf3a2e0826b399a8725e3cb4580124aa",
+        "uploadedAt": "2026-10-21T08:49:50.918Z",
+        "status": "verified",
+        "accessRole": "owner_and_verifier_only",
+        "reviewedBy": "usr_verifier_kapoor",
+        "reviewedAt": "2026-10-21T08:49:50.985Z"
+      }
+    ],
+    "submissionStatus": "approved",
+    "verificationStatus": "authoritative_verified",
+    "isAvailable": true,
+    "isAvailabilityConfirmed": true,
+    "ownerId": "usr_owner_sharma",
+    "availableFrom": "2026-11-01",
+    "dataSource": "owner_submission",
+    "createdAt": "2026-10-21T08:49:50.918Z",
+    "updatedAt": "2026-10-21T08:49:50.985Z",
+    "statusHistory": [
+      {
+        "id": "st_52e37588",
+        "fromStatus": "submitted",
+        "toStatus": "approved",
+        "changedBy": "usr_verifier_kapoor",
+        "changedAt": "2026-10-21T08:49:50.985Z",
+        "reason": "Title deed and physical inspection verified successfully."
+      }
+    ],
+    "approvedAt": "2026-10-21T08:49:50.985Z",
+    "availabilityConfirmedAt": "2026-10-21T08:49:50.985Z"
+  }
+]
