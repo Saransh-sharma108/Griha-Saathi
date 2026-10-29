@@ -24,7 +24,7 @@
     "test:homedna": "tsx server/src/tests/homedna.test.ts",
     "test:e2e": "tsx server/src/tests/e2e_integration_security.test.ts",
     "test:real-data": "tsx server/src/tests/real_property_data_engine.test.ts",
-    "test": "npm.cmd run test:auth && npm.cmd run test:search && npm.cmd run test:listing && npm.cmd run test:verification && npm.cmd run test:connections && npm.cmd run test:ai && npm.cmd run test:dashboard && npm.cmd run test:homedna && npm.cmd run test:e2e && npm.cmd run test:real-data"
+    "test": "npm.cmd run test:auth && npm.cmd run test:search && npm.cmd run test:demo-search && npm.cmd run test:listing && npm.cmd run test:verification && npm.cmd run test:connections && npm.cmd run test:ai && npm.cmd run test:dashboard && npm.cmd run test:homedna && npm.cmd run test:e2e && npm.cmd run test:real-data"
   },
   "keywords": [
     "rental",
