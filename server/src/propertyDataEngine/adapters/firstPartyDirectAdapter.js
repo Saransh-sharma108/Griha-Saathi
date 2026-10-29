@@ -1,4 +1,5 @@
 import { db } from '../../db.js';
+import { hasAuthoritativeVerificationEvidence, isPubliclyDiscoverable } from '../publicListingPolicy.js';
 export const TARGET_REGIONS_LIST = [
     'Delhi',
     'Haryana',
@@ -7,18 +8,11 @@ export const TARGET_REGIONS_LIST = [
     'Jammu & Kashmir',
 ];
 /**
- * FirstPartyDirectAdapter
- * Connects directly to Griha Saathi's verified first-party registry of listings
- * submitted by real property owners and licensed brokers through the platform.
- *
- * Every listing is backed by:
- * - Real user identity (DigiLocker / Phone verification)
- * - Land Registry audit (Jamabandi / PLRS / DORIS / Himbhoomi / J&K Aapki Zameen)
- * - Reviewer workflow with strict self-approval prohibition
+ * Searches the first-party registry populated by approved owner and broker submissions.
  */
 export class FirstPartyDirectAdapter {
     id = 'griha_saathi_direct';
-    name = 'Griha Saathi Authoritative Direct Registry';
+    name = 'Griha Saathi first-party listing registry';
     category = 'first_party_direct';
     targetRegions = TARGET_REGIONS_LIST;
     isConfigured() {
@@ -33,7 +27,7 @@ export class FirstPartyDirectAdapter {
             targetRegions: this.targetRegions,
             configured: true,
             status: 'connected',
-            statusMessage: 'Operational. First-party verified registry accepting direct owner & broker submissions across all 5 northern regions.',
+            statusMessage: 'First-party owner and broker submissions are searched after approval. No external rental feed is queried by this adapter.',
             requiredCredentials: [],
             documentationRef: '/docs/architecture.md#first-party-registry',
             lastCheckedAt: new Date().toISOString(),
@@ -41,14 +35,11 @@ export class FirstPartyDirectAdapter {
     }
     async fetchListings(query) {
         const now = new Date().toISOString();
-        let listings = Array.from(db.properties.values());
+        let listings = Array.from(db.properties.values()).filter(isPubliclyDiscoverable);
         // 1. Publication Gate:
         // Only approved properties that are not drafts, withdrawn, or suspended are eligible.
         if (query.onlyVerified !== false) {
-            listings = listings.filter((p) => p.submissionStatus === 'approved' && p.verificationStatus === 'authoritative_verified');
-        }
-        else {
-            listings = listings.filter((p) => p.submissionStatus === 'approved');
+            listings = listings.filter((p) => hasAuthoritativeVerificationEvidence(p));
         }
         // 2. Geographic Filtering
         if (query.state && query.state !== 'all') {

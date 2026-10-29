@@ -1,5 +1,6 @@
 import assert from 'assert';
 import { db } from '../db.js';
+import { hasAuthoritativeVerificationEvidence, isPubliclyDiscoverable } from '../propertyDataEngine/publicListingPolicy.js';
 async function runSearchTestSuite() {
     console.log('================================================================');
     console.log('GRIHA SAATHI — PHASE 4 DISCOVERY & ADVANCED SEARCH TEST SUITE');
@@ -21,9 +22,9 @@ async function runSearchTestSuite() {
     assert.strictEqual(emptyResults.length, 0);
     console.log('✓ Test 1 Passed: Zero synthetic listings verified. Default state is genuinely empty.\n');
     // --------------------------------------------------------------------------
-    // TEST 2: Inserting Authentic Test Properties across the 5 Target Regions
+    // TEST 2: Inserting explicitly synthetic test fixtures across the 5 target regions
     // --------------------------------------------------------------------------
-    console.log('[Test 2] Loading authentic test listings across 5 target territories...');
+    console.log('[Test 2] Loading synthetic test fixtures (not live provider listings) across 5 target territories...');
     const now = Date.now();
     const tenDaysAgo = new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString();
     const fiveDaysAgo = new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString();
@@ -82,6 +83,7 @@ async function runSearchTestSuite() {
         amenities: ['Power Backup', 'Gated Security', 'Lift', 'Dedicated Parking'],
         photos: ['https://example.com/real_photo_hr.jpg'],
         verificationStatus: 'authoritative_verified',
+        submissionStatus: 'approved',
         verificationRecord: mockVerificationRecord('prop_hr_001', 'Haryana', true),
         ownerId: 'usr_owner_hr',
         ownerMaskedContact: '9811223344',
@@ -113,6 +115,7 @@ async function runSearchTestSuite() {
         amenities: ['Dedicated Parking', 'Municipal Water Supply', 'Power Backup'],
         photos: [],
         verificationStatus: 'authoritative_verified',
+        submissionStatus: 'approved',
         verificationRecord: mockVerificationRecord('prop_pb_002', 'Punjab', true),
         ownerId: 'usr_owner_pb',
         ownerMaskedContact: '9876543210',
@@ -143,6 +146,7 @@ async function runSearchTestSuite() {
         amenities: ['Power Backup'],
         photos: [],
         verificationStatus: 'authoritative_verified',
+        submissionStatus: 'approved',
         verificationRecord: mockVerificationRecord('prop_dl_003', 'Delhi', true),
         ownerId: 'usr_owner_dl',
         ownerMaskedContact: '9899001122',
@@ -173,6 +177,7 @@ async function runSearchTestSuite() {
         amenities: ['Municipal Water Supply', 'Balcony'],
         photos: [],
         verificationStatus: 'pending_review',
+        submissionStatus: 'under_review',
         verificationRecord: mockVerificationRecord('prop_hp_004', 'Himachal Pradesh', false),
         ownerId: 'usr_owner_hp',
         availableFrom: '2026-11-01',
@@ -202,6 +207,7 @@ async function runSearchTestSuite() {
         amenities: ['Power Backup', 'Dedicated Parking'],
         photos: [],
         verificationStatus: 'authoritative_verified',
+        submissionStatus: 'approved',
         verificationRecord: mockVerificationRecord('prop_jk_005', 'Jammu & Kashmir', true),
         ownerId: 'usr_owner_jk',
         ownerMaskedContact: '9419012345',
@@ -219,7 +225,11 @@ async function runSearchTestSuite() {
     db.properties.set(prop4.id, prop4);
     db.properties.set(prop5.id, prop5);
     assert.strictEqual(db.properties.size, 5);
-    console.log('✓ Test 2 Passed: 5 authentic regional test properties loaded.\n');
+    assert.strictEqual(isPubliclyDiscoverable(prop1), true, 'An approved first-party listing with evidence is eligible');
+    assert.strictEqual(hasAuthoritativeVerificationEvidence(prop1), true);
+    assert.strictEqual(isPubliclyDiscoverable({ ...prop1, verificationRecord: undefined }), false, 'An unsupported authoritative verification claim must not be published');
+    assert.strictEqual(isPubliclyDiscoverable({ ...prop1, submissionStatus: 'under_review' }), false, 'Unapproved listings must not be published');
+    console.log('✓ Test 2 Passed: 5 isolated test fixtures loaded; fixtures are not production listing data.\n');
     // --------------------------------------------------------------------------
     // TEST 3: Multi-Dimensional Server-Side Filtering
     // --------------------------------------------------------------------------

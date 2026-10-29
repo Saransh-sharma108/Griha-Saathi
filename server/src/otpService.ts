@@ -135,7 +135,7 @@ async function sendRealEmail(toEmail: string, rawOtp: string, type: string): Pro
       subject,
       text: `Your Griha Saathi security verification code is: ${rawOtp}.\n\nThis single-use code expires in 5 minutes. If you did not initiate this request, please disregard this email. Griha Saathi will never ask for your PIN or OTP.`,
       html: `
-        <div style="font-family: 'Plus Jakarta Sans', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #E1E6E2; border-radius: 12px; background-color: #FAF9F6;">
+        <div style="font-family: 'Manrope', 'Inter', -apple-system, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #E1E6E2; border-radius: 12px; background-color: #FAF9F6;">
           <div style="text-align: center; margin-bottom: 20px;">
             <h2 style="color: #10261A; margin: 0;">Griha Saathi / गृह साथी</h2>
             <p style="color: #40916C; font-size: 14px; margin-top: 4px;">Trustworthy Rental Housing Platform</p>

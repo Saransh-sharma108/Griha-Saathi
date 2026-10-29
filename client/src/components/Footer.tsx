@@ -113,20 +113,40 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, language }) => {
             paddingTop: '1.5rem',
             borderTop: '1px solid #1C3627',
             display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: '1rem',
-            fontSize: '0.8rem',
-            color: '#7E9688',
+            flexDirection: 'column',
+            gap: '0.85rem',
           }}
         >
-          <div>
-            &copy; 2026 Griha Saathi. All rights reserved. Designed &amp; built for Bharat.
+          <div
+            style={{
+              fontFamily: 'var(--gs-font-heading)',
+              fontSize: '1.05rem',
+              fontWeight: 700,
+              color: '#DCFCE7',
+              letterSpacing: '-0.01em',
+            }}
+          >
+            “Where your next chapter feels like home.”
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#A3B5AA' }}>
-            <ShieldCheck size={14} color="#52B788" />
-            <span>Authoritative Indian Housing Platform &bull; Backed by Official State Revenue Registries</span>
+
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '1rem',
+              fontSize: '0.8rem',
+              color: '#7E9688',
+            }}
+          >
+            <div>
+              &copy; 2026 Griha Saathi. All rights reserved. Designed &amp; built for Bharat.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#A3B5AA' }}>
+              <ShieldCheck size={14} color="#52B788" />
+              <span>Authoritative Indian Housing Platform &bull; Backed by Official State Revenue Registries</span>
+            </div>
           </div>
         </div>
       </div>

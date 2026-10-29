@@ -16,6 +16,7 @@ import { FirstPartyDirectAdapter, TARGET_REGIONS_LIST } from './adapters/firstPa
 import { DataGovInAdapter } from './adapters/dataGovInAdapter.js';
 import { StateReraAdapter } from './adapters/stateReraAdapter.js';
 import { PartnerSyndicationAdapter } from './adapters/partnerSyndicationAdapter.js';
+import { isPubliclyDiscoverable } from './publicListingPolicy.js';
 
 export interface DataEngineSearchResult {
   success: boolean;
@@ -29,7 +30,7 @@ export interface DataEngineSearchResult {
     appliedFilters: PropertyQueryFilters;
     stalePolicyDays: number;
     targetStates: TargetState[];
-    realDataOnly: true;
+    firstPartyOnly: true;
     zeroSyntheticPolicyEnforced: true;
     connectedProvidersCount: number;
     unconfiguredProvidersCount: number;
@@ -60,7 +61,7 @@ export class PropertyDataEngine {
 
   /**
    * Computes the 5-Region Evidence-Based Integration Matrix (Directive 3)
-   * Tracks actual operational state per region based strictly on genuine records.
+   * Tracks current first-party listing eligibility and external-provider availability.
    */
   public getRegionalCoverageMatrix(): RegionalCoverageMatrix {
     const timestamp = new Date().toISOString();
@@ -69,19 +70,18 @@ export class PropertyDataEngine {
     const connectedProviderIds = connectedProviders.map((p) => p.name);
 
     const regions: Record<TargetState, RegionalStatusReport> = {} as any;
-    let totalGenuineListings = 0;
+    let totalEligibleListings = 0;
     let connectedRegionsCount = 0;
 
     for (const region of TARGET_REGIONS_LIST) {
-      // Query database directly for genuine, approved listings in this region
-      const genuineListingsInRegion = Array.from(db.properties.values()).filter(
+      const eligibleListingsInRegion = Array.from(db.properties.values()).filter(
         (p) =>
           p.state.toLowerCase() === region.toLowerCase() &&
-          p.submissionStatus === 'approved'
+          isPubliclyDiscoverable(p)
       );
 
-      const count = genuineListingsInRegion.length;
-      totalGenuineListings += count;
+      const count = eligibleListingsInRegion.length;
+      totalEligibleListings += count;
 
       let status: RegionalCoverageStatus;
       let statusLabel: string;
@@ -89,18 +89,18 @@ export class PropertyDataEngine {
 
       if (count > 0) {
         status = 'connected';
-        statusLabel = `Connected • ${count} Verified Listing${count > 1 ? 's' : ''}`;
+        statusLabel = `${count} Approved Listing${count > 1 ? 's' : ''}`;
         connectedRegionsCount++;
-        limitations = 'Subject to 60-day availability re-verification cycle and Title Deed registry audit.';
+        limitations = 'First-party listings only. Availability is confirmed only when an owner confirmation is within the freshness window.';
       } else {
         // First-party submission portal is open and operational, but 0 listings currently match
         status = 'connected_no_listings';
-        statusLabel = 'Connected • 0 Current Listings';
-        limitations = `First-party owner submission pipeline operational. Direct listings pending owner onboarding in ${region}. Third-party syndication feeds await partner credentials.`;
+        statusLabel = 'No eligible first-party listings';
+        limitations = `No approved first-party rental listings are currently available in ${region}. External rental feeds are not connected.`;
       }
 
       // Collect available property types from real data
-      const availableTypes = Array.from(new Set(genuineListingsInRegion.map((p) => p.propertyType)));
+      const availableTypes = Array.from(new Set(eligibleListingsInRegion.map((p) => p.propertyType)));
 
       regions[region] = {
         region,
@@ -120,10 +120,10 @@ export class PropertyDataEngine {
       timestamp,
       totalRegions: TARGET_REGIONS_LIST.length,
       connectedRegionsCount,
-      totalGenuineListings,
+      totalEligibleListings,
       zeroSyntheticPolicyEnforced: true,
       regions,
-      disclaimer: 'Griha Saathi never fabricates property listings. Real property owners and authorized brokers submit listings verified against state revenue records.',
+      disclaimer: 'Search currently reads approved first-party owner and broker submissions only. External rental feeds are not connected; verification claims require recorded evidence.',
     };
   }
 
@@ -202,7 +202,7 @@ export class PropertyDataEngine {
         appliedFilters: query,
         stalePolicyDays: FRESHNESS_POLICY_DAYS,
         targetStates: TARGET_REGIONS_LIST,
-        realDataOnly: true,
+        firstPartyOnly: true,
         zeroSyntheticPolicyEnforced: true,
         connectedProvidersCount: connectedCount,
         unconfiguredProvidersCount: providers.length - connectedCount,

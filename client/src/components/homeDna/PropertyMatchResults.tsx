@@ -114,9 +114,9 @@ export const PropertyMatchResults: React.FC<PropertyMatchResultsProps> = ({
         <div className="gs-dna-empty-icon">
           <Building size={36} color="var(--gs-forest-mid)" />
         </div>
-        <h4 className="gs-dna-empty-title">We couldn't find homes matching every selected requirement right now.</h4>
+        <h4 className="gs-dna-empty-title">Your next home might need a wider search.</h4>
         <p className="gs-dna-empty-desc">
-          Because Griha Saathi enforces strict zero-synthetic property data and audits all titles through state revenue portals, we present only real, approved residences.
+          We couldn't find homes matching every selected requirement right now. Because Griha Saathi enforces strict zero-synthetic property data and audits all titles through state revenue portals, we present only real, approved residences.
         </p>
 
         <div className="gs-dna-empty-actions">

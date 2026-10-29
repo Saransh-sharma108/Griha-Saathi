@@ -3,13 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Griha Saathi — Directing to Application</title>
+  <title>Griha Saathi — Trustworthy Rental Housing for Bharat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231B4332'><path d='M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z'/></svg>" />
   <style>
     body {
-      font-family: 'Inter', system-ui, sans-serif;
+      font-family: 'Inter', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
       margin: 0;
       min-height: 100vh;
       display: flex;
@@ -24,102 +26,236 @@
       background: #FFFFFF;
       border: 1px solid #E1E6E2;
       border-radius: 20px;
-      padding: 2.5rem;
-      max-width: 620px;
-      box-shadow: 0 16px 36px rgba(16, 38, 26, 0.1);
+      padding: 2.25rem;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 16px 36px rgba(16, 38, 26, 0.08);
       text-align: center;
     }
     .icon {
-      width: 62px;
-      height: 62px;
+      width: 58px;
+      height: 58px;
       background: #EBF3EE;
       color: #1B4332;
       border-radius: 16px;
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      margin: 0 auto 1.25rem;
-      font-size: 32px;
-      box-shadow: 0 4px 12px rgba(27, 67, 50, 0.15);
+      margin: 0 auto 1rem;
+      font-size: 28px;
+      box-shadow: 0 4px 12px rgba(27, 67, 50, 0.12);
     }
     h1 {
-      font-family: 'Outfit', sans-serif;
-      font-size: 1.65rem;
+      font-family: 'Manrope', sans-serif;
+      font-size: 1.5rem;
       color: #10261A;
-      margin-bottom: 0.5rem;
-      font-weight: 800;
+      margin: 0 0 0.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
     p {
-      font-size: 0.95rem;
-      color: #3D4842;
+      font-size: 0.92rem;
+      color: #4A5568;
       line-height: 1.6;
+      margin: 0 0 1.25rem;
+    }
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
       margin-bottom: 1.25rem;
     }
-    .btn {
-      display: inline-block;
-      width: 100%;
-      box-sizing: border-box;
+    .btn-primary {
       background: #1B4332;
       color: #FFFFFF;
       text-decoration: none;
       font-weight: 700;
-      font-size: 1.05rem;
-      padding: 0.95rem 1.5rem;
+      font-size: 0.95rem;
+      padding: 0.85rem 1.4rem;
       border-radius: 12px;
-      box-shadow: 0 4px 14px rgba(27, 67, 50, 0.25);
-      transition: background 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 14px rgba(27,67,50,0.22);
     }
-    .btn:hover {
+    .btn-primary:hover {
       background: #2D6A4F;
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: #FFFFFF;
+      color: #1B4332;
+      border: 1.5px solid #1B4332;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background: #EBF3EE;
+    }
+    .btn-secondary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
     .code-box {
       background: #19201C;
       color: #DCFCE7;
-      font-family: Consolas, monospace;
-      padding: 1.1rem 1.25rem;
-      border-radius: 10px;
+      font-family: Consolas, 'Courier New', monospace;
+      padding: 1rem 1.15rem;
+      border-radius: 12px;
       text-align: left;
-      font-size: 0.88rem;
-      margin: 1.25rem 0;
-      line-height: 1.7;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      line-height: 1.6;
     }
     .status {
       font-size: 0.84rem;
-      color: #15803D;
-      margin-top: 0.6rem;
+      color: #B45309;
       font-weight: 600;
+      min-height: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    @keyframes gsPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.9); } }
+    .pulse-dot {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      margin-right: 6px;
+      animation: gsPulse 1.6s infinite ease-in-out;
+      vertical-align: middle;
+    }
+    .info-footer {
+      margin-top: 1.25rem;
+      padding-top: 1rem;
+      border-top: 1px solid #E1E6E2;
+      text-align: left;
+      font-size: 0.78rem;
+      color: #64748B;
+      line-height: 1.5;
     }
   </style>
   <script>
-    function checkServer() {
-      var status = document.getElementById('status');
-      fetch('http://localhost:3000/api/health')
-        .then(function (res) {
-          if (res.ok) {
-            if (status) {
-              status.innerText = '✅ Griha Saathi is running! Redirecting...';
-              status.style.color = '#15803D';
-            }
-            window.location.replace('http://localhost:3000/' + window.location.hash);
-          } else {
-            setOffline();
-          }
-        })
-        .catch(function () {
-          setOffline();
-        });
-    }
+    var APP_URL = 'http://localhost:3000';
+    var pollTimer = null;
+    var attemptCount = 0;
+    var MAX_ATTEMPTS = 15;
+    var isChecking = false;
 
-    function setOffline() {
-      var status = document.getElementById('status');
-      if (status) {
-        status.innerHTML = '⚠️ Server offline. Run <code>npm.cmd run dev</code> or launch <strong>start.cmd</strong>. Auto-reconnecting...';
-        status.style.color = '#B45309';
+    function setStatus(message, color) {
+      var statusEl = document.getElementById('status');
+      if (statusEl) {
+        statusEl.textContent = message;
+        statusEl.style.color = color;
       }
-      setTimeout(checkServer, 2000);
     }
 
-    window.addEventListener('DOMContentLoaded', checkServer);
+    function fetchWithTimeout(url) {
+      var controller = new AbortController();
+      var timeoutId = setTimeout(function () { controller.abort(); }, 2500);
+      return fetch(url, {
+        method: 'GET',
+        mode: 'cors',
+        cache: 'no-store',
+        signal: controller.signal
+      }).then(function (response) {
+        clearTimeout(timeoutId);
+        return response;
+      }, function (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      });
+    }
+
+    function checkAndConnect(isManual) {
+      if (isChecking) return;
+      isChecking = true;
+      var retryBtn = document.getElementById('retry-btn');
+
+      setStatus('Checking the Griha Saathi frontend and backend on localhost:3000...', '#1D4ED8');
+      if (retryBtn) retryBtn.disabled = true;
+
+      fetchWithTimeout(APP_URL + '/api/health')
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('application:' + response.status);
+        }
+        return response.json();
+      })
+      .then(function (health) {
+        if (!health || health.status !== 'healthy') {
+          throw new Error('application:unhealthy');
+        }
+        return fetchWithTimeout(APP_URL + '/');
+      })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error('application:' + response.status);
+        }
+        onServerOnline();
+      })
+      .catch(function (error) {
+        var kind = error.name === 'AbortError' ? 'timeout' :
+          error.message.indexOf('application:') === 0 ? 'application' : 'offline';
+        var details = kind === 'application' ? error.message.replace('application:', '') : '';
+        onServerOffline(isManual, kind, details);
+      })
+      .finally(function () {
+        isChecking = false;
+        if (retryBtn) retryBtn.disabled = false;
+      });
+    }
+
+    function onServerOnline() {
+      if (pollTimer) clearTimeout(pollTimer);
+      setStatus('Frontend and backend are healthy. Redirecting to Griha Saathi...', '#15803D');
+      setTimeout(function () {
+        window.location.replace(APP_URL + '/' + window.location.hash);
+      }, 350);
+    }
+
+    function onServerOffline(isManual, kind, details) {
+      if (isManual) {
+        attemptCount = 0;
+      }
+      attemptCount++;
+
+      var message = kind === 'timeout' ? 'Health check timed out.' :
+        kind === 'application' ? 'Application error: ' + details + '.' :
+        !isManual && attemptCount <= 3 ? 'Server is starting or not yet reachable.' :
+        'The development server is offline or unreachable.';
+      if (attemptCount <= MAX_ATTEMPTS) {
+        setStatus(message + ' Retrying automatically (attempt ' + attemptCount + ' of ' + MAX_ATTEMPTS + ').', '#B45309');
+        pollTimer = setTimeout(function () { checkAndConnect(false); }, 2500);
+      } else {
+        setStatus(message + ' Automatic checks paused. Launch start.cmd, then click Retry Connection Now.', '#64748B');
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', function () {
+      checkAndConnect(false);
+      var retryBtn = document.getElementById('retry-btn');
+      if (retryBtn) {
+        retryBtn.addEventListener('click', function () {
+          if (pollTimer) clearTimeout(pollTimer);
+          checkAndConnect(true);
+        });
+      }
+    });
   </script>
 </head>
 <body>
@@ -129,11 +265,26 @@
     <p>
       Griha Saathi is a full-stack React & TypeScript platform powered by the <strong>Vite development server</strong> on <code>http://localhost:3000</code>.
     </p>
-    <a class="btn" href="http://localhost:3000/">👉 Open Griha Saathi on http://localhost:3000</a>
-    <div id="status" class="status">Connecting to http://localhost:3000...</div>
+
+    <div class="btn-group">
+      <a class="btn-primary" href="http://localhost:3000/">👉 Open Griha Saathi on http://localhost:3000</a>
+      <button type="button" class="btn-secondary" id="retry-btn">🔄 Retry Connection Now</button>
+    </div>
+
+    <div id="status" class="status" role="status" aria-live="polite">
+      <span class="pulse-dot" style="background: #F59E0B;"></span> Checking server on http://localhost:3000...
+    </div>
+
     <div class="code-box">
-      <div style="color: #91A098;"># Command to run both Frontend and API Backend:</div>
-      <div style="color: #DCFCE7; font-weight: bold;">npm.cmd run dev</div>
+      <div style="color: #91A098; font-size: 0.78rem; margin-bottom: 4px;"># Managed startup command (from any folder):</div>
+      <div style="font-weight: bold; color: #52B788;">start.cmd</div>
+      <div style="color: #91A098; font-size: 0.78rem; margin-top: 6px;">
+        Check the server with <strong style="color: #FFFFFF;">start.cmd status</strong> or stop it with <strong style="color: #FFFFFF;">start.cmd stop</strong>.
+      </div>
+    </div>
+
+    <div class="info-footer">
+      <strong>Server not ready?</strong> Start the managed development server with <code>start.cmd</code>. It checks both the frontend and backend before opening the application. Use <code>start.cmd status</code> to inspect it or <code>start.cmd stop</code> to stop only this project's managed server.
     </div>
   </div>
 </body>

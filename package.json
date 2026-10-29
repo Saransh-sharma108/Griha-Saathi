@@ -15,6 +15,7 @@
     "build:server": "tsc -p server/tsconfig.json",
     "test:auth": "tsx server/src/tests/auth.test.ts",
     "test:search": "tsx server/src/tests/search.test.ts",
+    "test:demo-search": "tsx client/src/data/demoProperties.test.ts",
     "test:listing": "tsx server/src/tests/listing.test.ts",
     "test:verification": "tsx server/src/tests/verification.test.ts",
     "test:connections": "tsx server/src/tests/connections_messaging_visits.test.ts",

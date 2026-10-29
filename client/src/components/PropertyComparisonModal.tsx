@@ -81,7 +81,10 @@ export const PropertyComparisonModal: React.FC<PropertyComparisonModalProps> = (
               <ShieldCheck size={20} color="var(--gs-gold)" />
               <span>{t.compareTitle}</span>
             </h2>
-            <p style={{ fontSize: '0.82rem', margin: '0.25rem 0 0', color: 'rgba(255, 255, 255, 0.75)' }}>
+            <p style={{ fontSize: '0.88rem', fontWeight: 600, margin: '0.3rem 0 0.15rem', color: '#45D6A0' }}>
+              Good homes deserve good comparisons.
+            </p>
+            <p style={{ fontSize: '0.8rem', margin: 0, color: 'rgba(255, 255, 255, 0.75)' }}>
               Comparing {items.length} authentic database records side-by-side. Missing fields are explicitly marked as "Not provided".
             </p>
           </div>

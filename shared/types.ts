@@ -27,6 +27,26 @@ export type PropertyType =
   | 'pg_coliving'
   | 'villa';
 
+export type DemoPropertyType =
+  | 'apartment_flat'
+  | 'independent_house'
+  | 'builder_floor'
+  | 'studio_apartment'
+  | 'single_room'
+  | 'shared_room'
+  | 'pg_accommodation'
+  | 'hostel'
+  | 'villa'
+  | 'duplex'
+  | 'penthouse'
+  | 'cottage'
+  | 'farmhouse'
+  | 'serviced_apartment'
+  | 'student_accommodation'
+  | 'family_rental_home';
+
+export type DemoAvailabilityStatus = 'simulated_available' | 'simulated_unavailable';
+
 export type TenantPreference = 
   | 'family'
   | 'bachelors'
@@ -339,6 +359,15 @@ export interface Property {
   createdAt: string;
   updatedAt: string;
   dataSource: 'owner_submission' | 'authorized_registry' | 'licensed_agent';
+  isDemo?: true;
+  demoOwnerLabel?: string;
+  demoAvailabilityStatus?: DemoAvailabilityStatus;
+  demoPropertyType?: DemoPropertyType;
+  propertyTypeLabel?: string;
+  demoListingMode?: 'entire_place' | 'private_room' | 'shared_room';
+  demoParking?: boolean;
+  demoPetFriendly?: boolean;
+  demoSuitableFor?: string[];
   // Provenance & Real-World Integration Contracts (Directives 4, 5 & 6)
   provider?: string;
   providerListingId?: string;
@@ -394,7 +423,7 @@ export interface RegionalCoverageMatrix {
   timestamp: string;
   totalRegions: number;
   connectedRegionsCount: number;
-  totalGenuineListings: number;
+  totalEligibleListings: number;
   zeroSyntheticPolicyEnforced: boolean;
   regions: Record<TargetState, RegionalStatusReport>;
   disclaimer: string;
@@ -426,7 +455,10 @@ export type PropertySortOption =
   | 'verified_first' 
   | 'rent_asc' 
   | 'rent_desc' 
-  | 'newest';
+  | 'newest'
+  | 'area_asc'
+  | 'area_desc'
+  | 'relevance';
 
 export interface PropertySearchParams {
   state?: string;
@@ -460,7 +492,7 @@ export interface PropertySearchResult {
     appliedFilters: Record<string, any>;
     stalePolicyDays: number;
     targetStates: TargetState[];
-    realDataOnly: boolean;
+    firstPartyOnly: boolean;
     providerConnectedCount: number;
     providerUnconfiguredCount: number;
   };
@@ -882,4 +914,3 @@ export interface HomeDnaSummaryDescriptor {
   locationDescriptor: string;
   tradeoffInsight: string;
 }
-

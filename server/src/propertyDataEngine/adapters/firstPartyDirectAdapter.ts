@@ -1,6 +1,7 @@
 import { IPropertyDataProviderAdapter, ProviderFetchResult, ProviderHealthStatus, PropertyQueryFilters } from '../types.js';
 import { TargetState, Property, PropertyProvenance } from '../../../../shared/types.js';
 import { db, FRESHNESS_POLICY_DAYS } from '../../db.js';
+import { hasAuthoritativeVerificationEvidence, isPubliclyDiscoverable } from '../publicListingPolicy.js';
 
 export const TARGET_REGIONS_LIST: TargetState[] = [
   'Delhi',
@@ -11,18 +12,11 @@ export const TARGET_REGIONS_LIST: TargetState[] = [
 ];
 
 /**
- * FirstPartyDirectAdapter
- * Connects directly to Griha Saathi's verified first-party registry of listings
- * submitted by real property owners and licensed brokers through the platform.
- * 
- * Every listing is backed by:
- * - Real user identity (DigiLocker / Phone verification)
- * - Land Registry audit (Jamabandi / PLRS / DORIS / Himbhoomi / J&K Aapki Zameen)
- * - Reviewer workflow with strict self-approval prohibition
+ * Searches the first-party registry populated by approved owner and broker submissions.
  */
 export class FirstPartyDirectAdapter implements IPropertyDataProviderAdapter {
   readonly id = 'griha_saathi_direct';
-  readonly name = 'Griha Saathi Authoritative Direct Registry';
+  readonly name = 'Griha Saathi first-party listing registry';
   readonly category = 'first_party_direct' as const;
   readonly targetRegions: TargetState[] = TARGET_REGIONS_LIST;
 
@@ -39,7 +33,7 @@ export class FirstPartyDirectAdapter implements IPropertyDataProviderAdapter {
       targetRegions: this.targetRegions,
       configured: true,
       status: 'connected',
-      statusMessage: 'Operational. First-party verified registry accepting direct owner & broker submissions across all 5 northern regions.',
+      statusMessage: 'First-party owner and broker submissions are searched after approval. No external rental feed is queried by this adapter.',
       requiredCredentials: [],
       documentationRef: '/docs/architecture.md#first-party-registry',
       lastCheckedAt: new Date().toISOString(),
@@ -48,17 +42,13 @@ export class FirstPartyDirectAdapter implements IPropertyDataProviderAdapter {
 
   async fetchListings(query: PropertyQueryFilters): Promise<ProviderFetchResult> {
     const now = new Date().toISOString();
-    let listings = Array.from(db.properties.values());
+    let listings = Array.from(db.properties.values()).filter(isPubliclyDiscoverable);
 
     // 1. Publication Gate:
     // Only approved properties that are not drafts, withdrawn, or suspended are eligible.
     if (query.onlyVerified !== false) {
       listings = listings.filter(
-        (p) => p.submissionStatus === 'approved' && p.verificationStatus === 'authoritative_verified'
-      );
-    } else {
-      listings = listings.filter(
-        (p) => p.submissionStatus === 'approved'
+        (p) => hasAuthoritativeVerificationEvidence(p)
       );
     }
 

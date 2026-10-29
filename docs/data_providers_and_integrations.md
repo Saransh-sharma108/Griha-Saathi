@@ -2,6 +2,18 @@
 
 This document identifies the legitimate property-data providers, authorized government registries, identity verification gateways, and lawful integration options for the initial target regions: **Jammu & Kashmir, Haryana, Himachal Pradesh, Delhi, and Punjab**.
 
+## Current property-search integration status
+
+The Find Property page defaults to a deterministic local synthetic catalog in `client/src/data/demoProperties.ts` (240 fictional listings across the five supported regions). These records exist only in the client-side demonstration search, are visibly labeled as fictional, have no genuine availability or contacts, and are not written to the first-party property registry.
+
+The separate Approved listings mode queries only approved first-party owner/broker submissions held in the application's in-memory registry and persisted to `server/data/properties.json`. This is a local JSON-backed store, not PostgreSQL or a live multi-user database. It is not a live third-party rental feed.
+
+The data.gov.in, State RERA, and partner adapters in the codebase do not have an authorized rental-listing resource plus a working response mapper. They are reported as unsupported and are not queried, even if a credential is present. RERA project registrations and land-record portals do not themselves establish rental listing availability. The provider descriptions below are integration research and prerequisites, not evidence that access or coverage has been obtained.
+
+First-party search can return only approved, eligible records. A claimed authoritative verification is excluded unless the stored verification record has verified land-registry, owner-identity, and physical-inspection stages. Demo records do not pass through or modify that registry. City/locality options in demo mode come from the deterministic catalog; first-party suggestions come only from currently eligible first-party records.
+
+A request timestamp is distinct from source modification time and owner availability confirmation. First-party availability is treated as confirmed only when its recorded owner confirmation is no more than 60 days old and is not future-dated. Demo availability and dates are simulated and are never presented as current owner confirmation.
+
 ---
 
 ## 1. Telecom SMS & Email Gateways (Live OTP Delivery)

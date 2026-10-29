@@ -23,6 +23,12 @@ export interface TranslationDictionary {
   home: {
     heroTitle: string;
     heroSubtitle: string;
+    eyebrow: string;
+    mainHeadline: string;
+    supportingHeadline: string;
+    description: string;
+    searchHeading: string;
+    locationPlaceholder: string;
     searchTabRent: string;
     searchTabDiscovery: string;
     stateSelectLabel: string;
@@ -43,6 +49,19 @@ export interface TranslationDictionary {
     ctaList: string;
     targetRegionsTitle: string;
     honestStateNotice: string;
+    valueSectionTitle: string;
+    valueSectionSubtitle: string;
+    valueCard1Title: string;
+    valueCard1Desc: string;
+    valueCard2Title: string;
+    valueCard2Desc: string;
+    valueCard3Title: string;
+    valueCard3Desc: string;
+    homeDnaTagline: string;
+    propertyDetailsTagline: string;
+    propertyComparisonTagline: string;
+    emptySearchTagline: string;
+    footerClosing: string;
   };
   find: {
     title: string;
@@ -448,14 +467,20 @@ export const translations: Record<SupportedLanguage, TranslationDictionary> = {
       language: 'Language',
     },
     home: {
-      heroTitle: 'Find Verified Indian Homes • Backed by Authoritative Land Records',
-      heroSubtitle: 'No fake listings, no fabricated reviews, and no unverified brokers. Griha Saathi connects genuine tenants with authenticated property owners across Jammu & Kashmir, Haryana, Himachal Pradesh, Delhi, and Punjab.',
+      heroTitle: 'Your Peace Deserves an Address.',
+      heroSubtitle: 'Find a place that feels right, fits your life, and makes coming home the best part of your day.',
+      eyebrow: 'A Better Way to Find Home.',
+      mainHeadline: 'Your Peace Deserves an Address.',
+      supportingHeadline: 'Find a place that feels right, fits your life, and makes coming home the best part of your day.',
+      description: 'Discover rental homes across Northern India. Compare property details, understand the costs, and know what has—and hasn\'t—been verified before making your move.',
+      searchHeading: 'Let\'s find your place.',
+      locationPlaceholder: 'City, locality, or landmark',
       searchTabRent: 'Rent a Verified Home',
       searchTabDiscovery: 'Regional Authority Directory',
       stateSelectLabel: 'Select Region / State',
       propertyTypeLabel: 'Property Type',
-      budgetLabel: 'Maximum Monthly Rent',
-      searchButton: 'Search Verified Listings',
+      budgetLabel: 'Monthly budget',
+      searchButton: 'Explore Homes',
       whyTrustTitle: 'How Griha Saathi Ensures Total Transparency',
       whyTrustSubtitle: 'Every single property listing must pass our multi-tier verification pipeline before appearing in public discovery.',
       pillar1Title: 'Government Land Registry Audit',
@@ -466,10 +491,23 @@ export const translations: Record<SupportedLanguage, TranslationDictionary> = {
       pillar3Desc: 'Authoritative identity verification for both property owners and tenants without disclosing sensitive credentials.',
       pillar4Title: 'Model Tenancy Act Compliant',
       pillar4Desc: 'Digital rental agreements legally aligned with the Model Tenancy Act, protecting security deposits and tenure rights.',
-      ctaFind: 'Find a Property',
-      ctaList: 'List Your Property for Verification',
+      ctaFind: 'Explore Homes →',
+      ctaList: 'List Your Property',
       targetRegionsTitle: 'Initial Target Regions in Northern Bharat',
       honestStateNotice: 'Data Integrity Commitment: Griha Saathi never displays synthetic or seeded properties. Only listings authenticated via authorized state registries and verified landlords will appear here.',
+      valueSectionTitle: 'A home should feel right. The details should, too.',
+      valueSectionSubtitle: 'Honest property intelligence and verified facts before you decide or sign.',
+      valueCard1Title: 'Know What You\'re Looking At',
+      valueCard1Desc: 'Explore the available property information and see which details have been checked.',
+      valueCard2Title: 'Understand the Real Cost',
+      valueCard2Desc: 'Compare rent, deposits, maintenance, and other applicable charges before committing.',
+      valueCard3Title: 'Find Your Kind of Home',
+      valueCard3Desc: 'Explore properties according to your budget, preferred location, and lifestyle needs.',
+      homeDnaTagline: 'Your life. Your vibe. Your kind of home.',
+      propertyDetailsTagline: 'Know the details before you fall in love.',
+      propertyComparisonTagline: 'Good homes deserve good comparisons.',
+      emptySearchTagline: 'Your next home might need a wider search.',
+      footerClosing: 'Where your next chapter feels like home.',
     },
     find: {
       title: 'Find Verified Rental Properties',
@@ -873,14 +911,20 @@ export const translations: Record<SupportedLanguage, TranslationDictionary> = {
       language: 'भाषा',
     },
     home: {
-      heroTitle: 'पूर्ण विश्वास और आधिकारिक सत्यापन के साथ घर किराये पर लें',
-      heroSubtitle: 'कोई नकली लिस्टिंग नहीं, कोई बनावटी समीक्षा नहीं। गृह साथी जम्मू और कश्मीर, हरियाणा, हिमाचल प्रदेश, दिल्ली और पंजाब में वास्तविक किरायेदारों को सत्यापित मकान मालिकों से जोड़ता है।',
+      heroTitle: 'आपका सुकून एक पते का हक़दार है।',
+      heroSubtitle: 'ऐसी जगह ढूंढें जो बिल्कुल सही लगे, आपकी ज़िंदगी में फिट बैठे, और जहाँ लौटना आपके दिन का सबसे अच्छा हिस्सा बने।',
+      eyebrow: 'घर खोजने का एक बेहतर तरीका।',
+      mainHeadline: 'आपका सुकून एक पते का हक़दार है।',
+      supportingHeadline: 'ऐसी जगह ढूंढें जो बिल्कुल सही लगे, आपकी ज़िंदगी में फिट बैठे, और जहाँ लौटना आपके दिन का सबसे अच्छा हिस्सा बने।',
+      description: 'उत्तर भारत भर में किराए के घर खोजें। प्रॉपर्टी विवरण की तुलना करें, लागत समझें और निर्णय लेने से पहले जानें कि क्या सत्यापित है और क्या नहीं।',
+      searchHeading: 'आइए आपका आशियाना ढूंढें।',
+      locationPlaceholder: 'शहर, इलाका या लैंडमार्क',
       searchTabRent: 'सत्यापित घर खोजें',
       searchTabDiscovery: 'क्षेत्रीय प्राधिकरण निर्देशिका',
       stateSelectLabel: 'क्षेत्र / राज्य चुनें',
       propertyTypeLabel: 'संपत्ति का प्रकार',
-      budgetLabel: 'अधिकतम मासिक किराया',
-      searchButton: 'सत्यापित लिस्टिंग खोजें',
+      budgetLabel: 'मासिक बजट',
+      searchButton: 'घर खोजें',
       whyTrustTitle: 'गृह साथी पूर्ण पारदर्शिता कैसे सुनिश्चित करता है',
       whyTrustSubtitle: 'प्रत्येक संपत्ति लिस्टिंग को सार्वजनिक होने से पहले हमारे बहु-स्तरीय सत्यापन से गुजरना अनिवार्य है।',
       pillar1Title: 'सरकारी भूमि रिकॉर्ड ऑडिट',
@@ -891,10 +935,23 @@ export const translations: Record<SupportedLanguage, TranslationDictionary> = {
       pillar3Desc: 'संवेदनशील विवरणों को सुरक्षित रखते हुए कानूनी पहचान सत्यापन।',
       pillar4Title: 'मॉडल किरायेदारी अधिनियम के अनुरूप',
       pillar4Desc: 'कानूनी रूप से मान्य डिजिटल किराया अनुबंध जो सुरक्षा जमा और अधिकारों की रक्षा करते हैं।',
-      ctaFind: 'संपत्ति खोजें',
-      ctaList: 'सत्यापन के लिए संपत्ति जोड़ें',
+      ctaFind: 'घर खोजें →',
+      ctaList: 'अपनी संपत्ति लिस्ट करें',
       targetRegionsTitle: 'उत्तरी भारत के प्रारंभिक लक्षित राज्य',
       honestStateNotice: 'डेटा सत्यनिष्ठा संकल्प: गृह साथी कभी भी बनावटी या नकली संपत्तियां प्रदर्शित नहीं करता है। केवल आधिकारिक रूप से सत्यापित लिस्टिंग ही यहां दिखाई देंगी।',
+      valueSectionTitle: 'घर सही लगना चाहिए। और उसके विवरण भी।',
+      valueSectionSubtitle: 'निर्णय लेने या हस्ताक्षर करने से पहले निष्पक्ष जानकारी और आधिकारिक साक्ष्य।',
+      valueCard1Title: 'जानें कि आप क्या देख रहे हैं',
+      valueCard1Desc: 'उपलब्ध प्रॉपर्टी जानकारी देखें और जानें कि कौन से विवरण जांचे गए हैं।',
+      valueCard2Title: 'वास्तविक लागत को समझें',
+      valueCard2Desc: 'प्रतिबद्धता से पहले किराया, सुरक्षा जमा, रखरखाव और अन्य शुल्कों की तुलना करें।',
+      valueCard3Title: 'अपनी पसंद का घर ढूंढें',
+      valueCard3Desc: 'अपने बजट, पसंदीदा स्थान और जीवनशैली की ज़रूरतों के अनुसार घर खोजें।',
+      homeDnaTagline: 'आपकी ज़िंदगी। आपका अंदाज़। आपका अपना घर।',
+      propertyDetailsTagline: 'दिल लगाने से पहले हर विवरण जानें।',
+      propertyComparisonTagline: 'अच्छे घर अच्छी तुलना के हक़दार हैं।',
+      emptySearchTagline: 'आपके अगले घर को शायद थोड़ी और व्यापक खोज की ज़रूरत है।',
+      footerClosing: 'जहाँ आपका अगला अध्याय अपने घर जैसा लगे।',
     },
     find: {
       title: 'सत्यापित किराये की संपत्तियां खोजें',
@@ -1298,14 +1355,20 @@ export const translations: Record<SupportedLanguage, TranslationDictionary> = {
       language: 'Language / भाषा',
     },
     home: {
-      heroTitle: 'Pore Trust aur Authoritative Verification Ke Saath Rent Pe Ghar Le',
-      heroSubtitle: 'Na koi fake listings, na fake reviews aur na fabricated brokers. Griha Saathi connects genuine tenants with verified property owners in J&K, Haryana, Himachal, Delhi aur Punjab.',
+      heroTitle: 'Your Peace Deserves an Address.',
+      heroSubtitle: 'Find a place that feels right, fits your life, aur ghar aana din ka best part banaye.',
+      eyebrow: 'A Better Way to Find Home.',
+      mainHeadline: 'Your Peace Deserves an Address.',
+      supportingHeadline: 'Find a place that feels right, fits your life, aur ghar aana din ka best part banaye.',
+      description: 'Northern India mein rental homes discover karein. Property details compare karein, costs samjhein, aur move karne se pehle jaanein kya verified hai aur kya nahi.',
+      searchHeading: 'Let\'s find your place.',
+      locationPlaceholder: 'City, locality, ya landmark',
       searchTabRent: 'Verified Home Dhundo',
       searchTabDiscovery: 'Regional Authority Directory',
       stateSelectLabel: 'Region / State Chunein',
       propertyTypeLabel: 'Property Type',
-      budgetLabel: 'Max Monthly Rent',
-      searchButton: 'Verified Listings Search Karein',
+      budgetLabel: 'Monthly budget',
+      searchButton: 'Explore Homes',
       whyTrustTitle: 'Griha Saathi Total Transparency Kaise Ensure Karta Hai',
       whyTrustSubtitle: 'Har single property ko public hone se pehle hamare multi-tier verification pipeline se pass hona padta hai.',
       pillar1Title: 'Government Land Registry Audit',
@@ -1316,10 +1379,23 @@ export const translations: Record<SupportedLanguage, TranslationDictionary> = {
       pillar3Desc: 'Authoritative identity verification without exposing sensitive personal credentials.',
       pillar4Title: 'Model Tenancy Act Compliant',
       pillar4Desc: 'Legally vetted digital rental agreements jo tenants aur owners dono ke rights protect karte hain.',
-      ctaFind: 'Property Search Karein',
-      ctaList: 'Apni Property List & Verify Karein',
+      ctaFind: 'Explore Homes →',
+      ctaList: 'List Your Property',
       targetRegionsTitle: 'Initial Target Regions in North Bharat',
       honestStateNotice: 'Data Integrity Commitment: Griha Saathi kabhi fake ya synthetic listings display nahi karta. Sirf authorized state registries aur verified landlords ki listing yahan aati hai.',
+      valueSectionTitle: 'A home should feel right. Details bhi right honi chahiye.',
+      valueSectionSubtitle: 'Decide karne ya sign karne se pehle honest information aur verified evidence.',
+      valueCard1Title: 'Know What You\'re Looking At',
+      valueCard1Desc: 'Property details explore karein aur dekhein kaunse details officially checked hain.',
+      valueCard2Title: 'Understand the Real Cost',
+      valueCard2Desc: 'Rent, deposit, maintenance charges pehle hi compare karein.',
+      valueCard3Title: 'Find Your Kind of Home',
+      valueCard3Desc: 'Apne budget, preferred location aur vibe ke according ghar discover karein.',
+      homeDnaTagline: 'Your life. Your vibe. Your kind of home.',
+      propertyDetailsTagline: 'Know the details before you fall in love.',
+      propertyComparisonTagline: 'Good homes deserve good comparisons.',
+      emptySearchTagline: 'Your next home might need a wider search.',
+      footerClosing: 'Where your next chapter feels like home.',
     },
     find: {
       title: 'Verified Rental Properties Dhundein',

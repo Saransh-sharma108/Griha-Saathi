@@ -6,6 +6,7 @@ import { db, FRESHNESS_POLICY_DAYS } from './db.js';
 import { authenticateUser, requireAuth, requireRole } from './middleware.js';
 import { storeUploadedFile, getStorageConfigStatus } from './storageService.js';
 import { propertyDataEngine } from './propertyDataEngine/propertyDataEngine.js';
+import { hasAuthoritativeVerificationEvidence, isPubliclyDiscoverable } from './propertyDataEngine/publicListingPolicy.js';
 export const propertiesRouter = Router();
 propertiesRouter.use(authenticateUser);
 export const ALLOWED_TARGET_STATES = [
@@ -481,31 +482,114 @@ propertiesRouter.get('/regional-status', (req, res) => {
         return res.status(500).json({ success: false, error: 'Internal server error computing regional status.' });
     }
 });
+propertiesRouter.get('/locations', (req, res) => {
+    try {
+        const listings = Array.from(db.properties.values()).filter(isPubliclyDiscoverable);
+        const cities = Array.from(new Set(listings.map((property) => property.city).filter(Boolean))).sort();
+        const localities = Array.from(new Set(listings.map((property) => property.locality).filter(Boolean))).sort();
+        return res.json({
+            success: true,
+            source: 'griha_saathi_first_party_registry',
+            retrievedAt: new Date().toISOString(),
+            cities,
+            localities,
+        });
+    }
+    catch (error) {
+        console.error('Error in GET /api/properties/locations:', error);
+        return res.status(500).json({ success: false, error: 'Internal server error retrieving supported locations.' });
+    }
+});
 /**
  * GET /api/properties
- * Returns filtered real properties. Only approved and verified listings appear in public search.
+ * Searches approved first-party listings. External rental feeds are not currently configured.
  */
 propertiesRouter.get('/', (req, res) => {
     try {
-        const { state, city, locality, propertyType, minRent, maxRent, bedrooms, bathrooms, furnishing, preference, amenities, availableFrom, dataSource, verificationStatus, onlyVerified, confirmedAvailableOnly, sortBy = 'verified_first', page = '1', limit = '12', } = req.query;
+        const { state, city, locality, location, propertyType, minRent, maxRent, minArea, maxArea, bedrooms, bathrooms, furnishing, preference, amenities, availableFrom, dataSource, verificationStatus, onlyVerified, confirmedAvailableOnly, sortBy = 'verified_first', page = '1', limit = '12', pageSize, } = req.query;
+        const stringFilters = [state, city, locality, location, propertyType, furnishing, preference, availableFrom, dataSource, sortBy];
+        if (stringFilters.some((value) => value !== undefined && typeof value !== 'string')) {
+            return res.status(400).json({ success: false, error: 'Search filters must each be a single text value.' });
+        }
+        const textFilters = [city, locality, location].filter((value) => typeof value === 'string');
+        if (textFilters.some((value) => value.length > 120)) {
+            return res.status(400).json({ success: false, error: 'Location search text must not exceed 120 characters.' });
+        }
+        if (state && state !== 'all' && !ALLOWED_TARGET_STATES.includes(state)) {
+            return res.status(400).json({ success: false, error: 'Unsupported target region.' });
+        }
+        const allowedPropertyTypes = ['1bhk', '2bhk', '3bhk', '4bhk_plus', 'independent_house', 'villa', 'studio', 'pg_coliving'];
+        if (propertyType && propertyType !== 'all' && !allowedPropertyTypes.includes(propertyType)) {
+            return res.status(400).json({ success: false, error: 'Unsupported property type.' });
+        }
+        if (furnishing && furnishing !== 'all' && !['unfurnished', 'semi_furnished', 'fully_furnished'].includes(furnishing)) {
+            return res.status(400).json({ success: false, error: 'Unsupported furnishing value.' });
+        }
+        if (preference && preference !== 'all' && !['family', 'bachelors', 'working_professionals', 'students', 'any'].includes(preference)) {
+            return res.status(400).json({ success: false, error: 'Unsupported tenant preference.' });
+        }
+        if (dataSource && dataSource !== 'all' && !['owner_submission', 'licensed_agent', 'authorized_registry'].includes(dataSource)) {
+            return res.status(400).json({ success: false, error: 'Unsupported listing source.' });
+        }
+        if (onlyVerified !== undefined && !['true', 'false'].includes(String(onlyVerified))) {
+            return res.status(400).json({ success: false, error: 'onlyVerified must be true or false.' });
+        }
+        if (confirmedAvailableOnly !== undefined && !['true', 'false'].includes(String(confirmedAvailableOnly))) {
+            return res.status(400).json({ success: false, error: 'confirmedAvailableOnly must be true or false.' });
+        }
+        if (availableFrom !== undefined) {
+            const dateText = String(availableFrom);
+            const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateText);
+            const parsedDate = dateMatch
+                ? new Date(Date.UTC(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3])))
+                : null;
+            if (!parsedDate || parsedDate.toISOString().slice(0, 10) !== dateText) {
+                return res.status(400).json({ success: false, error: 'availableFrom must be a valid YYYY-MM-DD date.' });
+            }
+        }
+        if ([bedrooms, bathrooms].some((value) => value !== undefined && (typeof value !== 'string' || (value !== 'all' && !/^[1-9]\d?$/.test(value))))) {
+            return res.status(400).json({ success: false, error: 'Bedroom and bathroom filters must be positive whole numbers.' });
+        }
+        if (verificationStatus !== undefined && (typeof verificationStatus !== 'string' || verificationStatus.length > 40)) {
+            return res.status(400).json({ success: false, error: 'verificationStatus must be a single valid text value.' });
+        }
+        let amenityList = [];
+        if (amenities !== undefined) {
+            const rawAmenities = Array.isArray(amenities) ? amenities : [amenities];
+            if (rawAmenities.some((amenity) => typeof amenity !== 'string')) {
+                return res.status(400).json({ success: false, error: 'Amenities must be text values.' });
+            }
+            amenityList = rawAmenities.flatMap((amenity) => String(amenity).split(','))
+                .map((amenity) => amenity.trim())
+                .filter(Boolean);
+            if (amenityList.length > 10 || amenityList.some((amenity) => amenity.length > 60)) {
+                return res.status(400).json({ success: false, error: 'Search supports at most 10 amenities, each up to 60 characters.' });
+            }
+        }
         // Validate Rent Inputs
         let parsedMinRent;
         let parsedMaxRent;
         if (minRent !== undefined && minRent !== '') {
+            if (typeof minRent !== 'string') {
+                return res.status(400).json({ success: false, error: 'Minimum monthly rent must be a single number.' });
+            }
             parsedMinRent = Number(minRent);
-            if (isNaN(parsedMinRent) || parsedMinRent < 0) {
+            if (!Number.isFinite(parsedMinRent) || parsedMinRent < 0 || parsedMinRent > 1_000_000_000) {
                 return res.status(400).json({
                     success: false,
-                    error: 'Minimum monthly rent must be a non-negative number.',
+                    error: 'Minimum monthly rent must be between 0 and 1,000,000,000.',
                 });
             }
         }
         if (maxRent !== undefined && maxRent !== '') {
+            if (typeof maxRent !== 'string') {
+                return res.status(400).json({ success: false, error: 'Maximum monthly rent must be a single number.' });
+            }
             parsedMaxRent = Number(maxRent);
-            if (isNaN(parsedMaxRent) || parsedMaxRent < 0) {
+            if (!Number.isFinite(parsedMaxRent) || parsedMaxRent < 0 || parsedMaxRent > 1_000_000_000) {
                 return res.status(400).json({
                     success: false,
-                    error: 'Maximum monthly rent must be a non-negative number.',
+                    error: 'Maximum monthly rent must be between 0 and 1,000,000,000.',
                 });
             }
         }
@@ -515,28 +599,52 @@ propertiesRouter.get('/', (req, res) => {
                 error: 'Minimum rent cannot exceed maximum rent.',
             });
         }
-        // Validate Pagination Inputs
-        const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-        const limitNum = Math.min(50, Math.max(1, parseInt(String(limit), 10) || 12));
-        let results = Array.from(db.properties.values());
-        // 1. Strict Publication Gate:
-        // By default, only approved & authoritative_verified listings enter public discovery.
-        // Drafts, pending review, withdrawn, and rejected properties NEVER leak into public search.
+        const parseOptionalArea = (value, label) => {
+            if (value === undefined || value === '')
+                return undefined;
+            if (typeof value !== 'string' || !/^\d+$/.test(value)) {
+                throw new Error(`${label} area must be a positive whole number.`);
+            }
+            const parsed = Number(value);
+            if (!Number.isSafeInteger(parsed) || parsed < 0 || parsed > 1_000_000) {
+                throw new Error(`${label} area must be between 0 and 1,000,000 sq.ft.`);
+            }
+            return parsed;
+        };
+        let parsedMinArea;
+        let parsedMaxArea;
+        try {
+            parsedMinArea = parseOptionalArea(minArea, 'Minimum');
+            parsedMaxArea = parseOptionalArea(maxArea, 'Maximum');
+        }
+        catch (error) {
+            return res.status(400).json({ success: false, error: error.message });
+        }
+        if (parsedMinArea !== undefined && parsedMaxArea !== undefined && parsedMinArea > parsedMaxArea) {
+            return res.status(400).json({ success: false, error: 'Minimum area cannot exceed maximum area.' });
+        }
+        const pageValue = typeof page === 'string' ? page : '';
+        const pageSizeValue = pageSize === undefined ? limit : pageSize;
+        if (!/^[1-9]\d*$/.test(pageValue) || typeof pageSizeValue !== 'string' || !/^[1-9]\d*$/.test(pageSizeValue)) {
+            return res.status(400).json({ success: false, error: 'Page and pageSize must be positive whole numbers.' });
+        }
+        const pageNum = Number(pageValue);
+        const limitNum = Number(pageSizeValue);
+        if (!Number.isSafeInteger(pageNum) || pageNum > 1_000_000 || !Number.isSafeInteger(limitNum) || limitNum > 50) {
+            return res.status(400).json({ success: false, error: 'Page must not exceed 1,000,000 and pageSize must not exceed 50.' });
+        }
+        const validSortOptions = ['verified_first', 'rent_asc', 'rent_desc', 'newest', 'area_asc', 'area_desc', 'relevance'];
+        if (typeof sortBy !== 'string' || !validSortOptions.includes(sortBy)) {
+            return res.status(400).json({ success: false, error: 'Unsupported sortBy value.' });
+        }
+        const retrievalTime = new Date().toISOString();
+        let results = Array.from(db.properties.values()).filter(isPubliclyDiscoverable);
         const isOnlyVerified = onlyVerified !== 'false';
         if (isOnlyVerified) {
-            results = results.filter((p) => p.verificationStatus === 'authoritative_verified' &&
-                p.submissionStatus === 'approved');
+            results = results.filter((p) => hasAuthoritativeVerificationEvidence(p));
         }
         else if (verificationStatus && typeof verificationStatus === 'string' && verificationStatus !== 'all') {
-            results = results.filter((p) => p.verificationStatus === verificationStatus &&
-                p.submissionStatus !== 'draft' &&
-                p.submissionStatus !== 'withdrawn' &&
-                p.submissionStatus !== 'suspended');
-        }
-        else {
-            results = results.filter((p) => p.submissionStatus !== 'draft' &&
-                p.submissionStatus !== 'withdrawn' &&
-                p.submissionStatus !== 'suspended');
+            results = results.filter((p) => p.verificationStatus === verificationStatus);
         }
         // 2. Geographic Target State Filter
         if (state && typeof state === 'string' && state !== 'all') {
@@ -545,6 +653,10 @@ propertiesRouter.get('/', (req, res) => {
         // 3. City / District Filter
         if (city && typeof city === 'string' && city.trim().length > 0) {
             results = results.filter((p) => p.city.toLowerCase().includes(city.toLowerCase().trim()));
+        }
+        if (location && typeof location === 'string' && location.trim().length > 0) {
+            const locationQuery = location.trim().toLowerCase();
+            results = results.filter((p) => [p.state, p.city, p.locality, p.title].some((value) => value.toLowerCase().includes(locationQuery)));
         }
         // 4. Locality / Neighbourhood Filter
         if (locality && typeof locality === 'string' && locality.trim().length > 0) {
@@ -560,6 +672,12 @@ propertiesRouter.get('/', (req, res) => {
         }
         if (parsedMaxRent !== undefined) {
             results = results.filter((p) => p.rentPerMonth <= parsedMaxRent);
+        }
+        if (parsedMinArea !== undefined) {
+            results = results.filter((p) => p.areaSqFt !== undefined && p.areaSqFt >= parsedMinArea);
+        }
+        if (parsedMaxArea !== undefined) {
+            results = results.filter((p) => p.areaSqFt !== undefined && p.areaSqFt <= parsedMaxArea);
         }
         // 7. Bedrooms Filter
         if (bedrooms !== undefined && bedrooms !== '' && bedrooms !== 'all') {
@@ -584,16 +702,11 @@ propertiesRouter.get('/', (req, res) => {
             results = results.filter((p) => p.tenantPreference === preference || p.tenantPreference === 'any');
         }
         // 11. Amenities Filter
-        if (amenities) {
-            const amenityList = Array.isArray(amenities)
-                ? amenities
-                : String(amenities).split(',').map((a) => a.trim().toLowerCase()).filter(Boolean);
-            if (amenityList.length > 0) {
-                results = results.filter((p) => {
-                    const propAmenities = (p.amenities || []).map((a) => a.toLowerCase());
-                    return amenityList.every((reqAmenity) => propAmenities.includes(reqAmenity));
-                });
-            }
+        if (amenityList.length > 0) {
+            results = results.filter((p) => {
+                const propAmenities = (p.amenities || []).map((a) => a.toLowerCase().trim());
+                return amenityList.every((reqAmenity) => propAmenities.includes(reqAmenity.toLowerCase()));
+            });
         }
         // 12. Availability Date Filter
         if (availableFrom && typeof availableFrom === 'string' && availableFrom.trim().length > 0) {
@@ -608,15 +721,22 @@ propertiesRouter.get('/', (req, res) => {
             results = results.filter((p) => db.isFreshAvailability(p.availabilityConfirmedAt));
         }
         // 15. Sorting Logic
-        const validSort = ['verified_first', 'rent_asc', 'rent_desc', 'newest'].includes(String(sortBy))
-            ? String(sortBy)
-            : 'verified_first';
+        const validSort = sortBy;
         results.sort((a, b) => {
             if (validSort === 'rent_asc') {
                 return a.rentPerMonth - b.rentPerMonth;
             }
             if (validSort === 'rent_desc') {
                 return b.rentPerMonth - a.rentPerMonth;
+            }
+            if (validSort === 'area_asc') {
+                return (a.areaSqFt ?? Number.MAX_SAFE_INTEGER) - (b.areaSqFt ?? Number.MAX_SAFE_INTEGER);
+            }
+            if (validSort === 'area_desc') {
+                return (b.areaSqFt ?? -1) - (a.areaSqFt ?? -1);
+            }
+            if (validSort === 'relevance') {
+                return a.rentPerMonth - b.rentPerMonth || a.id.localeCompare(b.id);
             }
             if (validSort === 'newest') {
                 return Date.parse(b.createdAt) - Date.parse(a.createdAt);
@@ -637,18 +757,14 @@ propertiesRouter.get('/', (req, res) => {
         // 17. Sanitize each property for public discovery with full Provenance Contract (Directive 5)
         const sanitizedProperties = paginated.map((p) => {
             const isFresh = db.isFreshAvailability(p.availabilityConfirmedAt);
-            const provenance = p.provenance || {
-                provider: p.provider || (p.dataSource === 'authorized_registry' ? 'state_rera_registry' : 'griha_saathi_direct'),
-                providerName: p.provider === 'data_gov_in'
-                    ? 'Open Government Data Platform India (data.gov.in)'
-                    : p.provider === 'state_rera_registry' || p.dataSource === 'authorized_registry'
-                        ? 'State RERA Public Project Registry'
-                        : 'Griha Saathi Authoritative Direct Registry',
-                providerListingId: p.providerListingId || p.id,
-                sourceUrl: p.sourceUrl || `/#find-property?id=${encodeURIComponent(p.id)}`,
-                sourcePublishedAt: p.sourcePublishedAt || p.submittedAt || p.createdAt,
-                sourceModifiedAt: p.sourceModifiedAt || p.updatedAt,
-                lastRetrievedAt: p.lastRetrievedAt || new Date().toISOString(),
+            const provenance = {
+                provider: 'griha_saathi_direct',
+                providerName: 'Griha Saathi first-party listing registry',
+                providerListingId: p.id,
+                sourceUrl: `/#find-property?id=${encodeURIComponent(p.id)}`,
+                sourcePublishedAt: p.submittedAt || p.createdAt,
+                sourceModifiedAt: p.updatedAt,
+                lastRetrievedAt: retrievalTime,
                 lastSourceConfirmedAt: p.availabilityConfirmedAt,
                 availabilityConfirmationStatus: isFresh ? 'confirmed' : 'unconfirmed',
                 isFresh,
@@ -664,66 +780,90 @@ propertiesRouter.get('/', (req, res) => {
                 provider: provenance.provider,
                 providerListingId: provenance.providerListingId,
                 sourceUrl: provenance.sourceUrl,
-                lastRetrievedAt: provenance.lastRetrievedAt,
+                lastRetrievedAt: retrievalTime,
                 availabilityConfirmationStatus: provenance.availabilityConfirmationStatus,
                 provenance,
             };
-            return db.toPublicProperty(enriched);
+            const publicProperty = db.toPublicProperty(enriched);
+            return {
+                ...publicProperty,
+                availabilityStatus: isFresh ? publicProperty.availabilityStatus : undefined,
+            };
         });
         const regionalMatrix = propertyDataEngine.getRegionalCoverageMatrix();
         const providers = propertyDataEngine.getAllProvidersStatus();
         const connectedProvidersCount = providers.filter((pr) => pr.configured).length;
-        const totalApprovedInRegistry = Array.from(db.properties.values()).filter((p) => p.submissionStatus === 'approved' && (!isOnlyVerified || p.verificationStatus === 'authoritative_verified')).length;
+        const totalEligibleInRegistry = Array.from(db.properties.values()).filter(isPubliclyDiscoverable).length;
         const hasActiveFilters = Boolean((state && state !== 'all') ||
             (city && String(city).trim()) ||
             (locality && String(locality).trim()) ||
+            (location && String(location).trim()) ||
             (propertyType && propertyType !== 'all') ||
             parsedMinRent !== undefined ||
             parsedMaxRent !== undefined ||
+            parsedMinArea !== undefined ||
+            parsedMaxArea !== undefined ||
             (bedrooms && bedrooms !== 'all') ||
             (bathrooms && bathrooms !== 'all') ||
             (furnishing && furnishing !== 'all') ||
             (preference && preference !== 'all') ||
-            amenities ||
+            (availableFrom && typeof availableFrom === 'string' && availableFrom.trim()) ||
+            (verificationStatus && verificationStatus !== 'all') ||
+            amenityList.length > 0 ||
             (dataSource && dataSource !== 'all') ||
+            isOnlyVerified ||
             confirmedAvailableOnly === 'true');
         let diagnosticStatus;
         let diagnosticMessage;
         if (total > 0) {
             diagnosticStatus = 'results_found';
-            diagnosticMessage = `Successfully retrieved ${total} authentic property listing${total > 1 ? 's' : ''} with verified cadastral provenance.`;
-        }
-        else if (hasActiveFilters && totalApprovedInRegistry > 0) {
-            diagnosticStatus = 'filters_too_restrictive';
-            diagnosticMessage = `No authentic properties match your active filter criteria. ${totalApprovedInRegistry} verified property listing${totalApprovedInRegistry > 1 ? 's are' : ' is'} currently active in the registry. Clearing or broadening filters will restore visible results.`;
+            diagnosticMessage = `Found ${total} approved first-party listing${total > 1 ? 's' : ''} from the Griha Saathi registry. Availability is confirmed only where a recent owner confirmation is recorded.`;
         }
         else if (dataSource && dataSource !== 'all' && dataSource !== 'griha_saathi_direct') {
             diagnosticStatus = 'awaiting_provider_credentials';
-            diagnosticMessage = `Third-party syndication provider '${dataSource}' is awaiting enterprise credentials in .env. No synthetic placeholder data is permitted.`;
+            diagnosticMessage = `No live external rental source is configured for '${dataSource}'. Search currently uses only approved first-party listings.`;
+        }
+        else if (hasActiveFilters && totalEligibleInRegistry > 0) {
+            diagnosticStatus = 'filters_too_restrictive';
+            diagnosticMessage = `No eligible first-party listings match your active filters. ${totalEligibleInRegistry} listing${totalEligibleInRegistry === 1 ? ' is' : 's are'} currently eligible in the registry.`;
         }
         else {
             diagnosticStatus = 'no_listings_in_registry';
-            diagnosticMessage = 'The authoritative property registry contains 0 verified listings for this scope. Genuine owner and broker submissions are accepted via the listing portal.';
+            diagnosticMessage = 'No eligible first-party rental listings are currently available. External rental feeds are not connected; owner and broker submissions appear after approval.';
         }
         return res.json({
             success: true,
             total,
             page: pageNum,
             limit: limitNum,
+            pageSize: limitNum,
             totalPages,
             properties: sanitizedProperties,
+            retrievedAt: retrievalTime,
+            sources: [{
+                    id: 'griha_saathi_first_party_registry',
+                    name: 'Griha Saathi approved owner and broker submissions',
+                    status: 'queried',
+                    totalEligibleRecords: totalEligibleInRegistry,
+                }],
+            sourceErrors: [],
             regionalMatrix,
             diagnostics: {
                 status: diagnosticStatus,
                 message: diagnosticMessage,
-                totalInRegistry: totalApprovedInRegistry,
+                totalInRegistry: totalEligibleInRegistry,
                 totalMatchingQuery: total,
                 hasActiveFilters,
                 stages: [
                     { name: 'db_connection', status: 'healthy', recordsCount: db.properties.size },
-                    { name: 'publication_gate', status: 'healthy', approvedRecords: totalApprovedInRegistry },
+                    { name: 'publication_gate', status: 'healthy', eligibleRecords: totalEligibleInRegistry },
                     { name: 'filter_pipeline', status: 'completed', survivingRecords: total },
-                    { name: 'data_integrity_audit', status: 'passed', syntheticDetected: 0 }
+                    {
+                        name: 'publication_and_data_integrity',
+                        status: 'applied',
+                        eligibleRecords: totalEligibleInRegistry,
+                        excludedRecords: Math.max(0, db.properties.size - totalEligibleInRegistry),
+                    }
                 ],
                 providersChecked: providers.map((pr) => ({
                     id: pr.id,
@@ -741,21 +881,32 @@ propertiesRouter.get('/', (req, res) => {
                     state: state || 'all',
                     city: city || '',
                     locality: locality || '',
+                    location: location || '',
                     propertyType: propertyType || 'all',
                     minRent: parsedMinRent,
                     maxRent: parsedMaxRent,
+                    minAreaSqFt: parsedMinArea,
+                    maxAreaSqFt: parsedMaxArea,
+                    availableFrom: availableFrom || '',
                     bedrooms: bedrooms || 'all',
                     bathrooms: bathrooms || 'all',
                     furnishing: furnishing || 'all',
                     preference: preference || 'all',
                     onlyVerified: isOnlyVerified,
+                    verificationStatus: verificationStatus || 'all',
                     confirmedAvailableOnly: confirmedAvailableOnly === 'true',
                     sortBy: validSort,
                 },
                 stalePolicyDays: FRESHNESS_POLICY_DAYS,
                 targetStates: ALLOWED_TARGET_STATES,
-                realDataOnly: true,
-                zeroSyntheticPolicyEnforced: true,
+                retrievedAt: retrievalTime,
+                freshness: {
+                    retrievedAt: retrievalTime,
+                    availabilityConfirmationWindowDays: FRESHNESS_POLICY_DAYS,
+                    availabilityMeaning: 'A recent retrieval does not mean availability was recently confirmed.',
+                },
+                firstPartyOnly: true,
+                placeholderTextExcluded: true,
                 providerConnectedCount: connectedProvidersCount,
                 providerUnconfiguredCount: providers.length - connectedProvidersCount,
                 regionalMatrix,
@@ -779,26 +930,25 @@ propertiesRouter.get('/:id', (req, res) => {
         const propertyId = String(req.params.id);
         const property = db.properties.get(propertyId);
         if (!property) {
-            return res.status(404).json({ success: false, error: 'Property record not found in authoritative database.' });
+            return res.status(404).json({ success: false, error: 'Property record not found.' });
         }
-        // Record genuine view
-        db.recordPropertyView(property.id, req.user?.id, req.ip);
         const isOwner = req.user && req.user.id === property.ownerId;
         const isVerifierOrAdmin = req.user && (req.user.activeRole === 'admin' || req.user.activeRole === 'verifier' || req.user.activeRole === 'field_verifier');
+        if (!isPubliclyDiscoverable(property) && !isOwner && !isVerifierOrAdmin) {
+            return res.status(404).json({ success: false, error: 'Property record not found.' });
+        }
+        db.recordPropertyView(property.id, req.user?.id, req.ip);
         // Only owner or reviewer can see full private details; public sees sanitized property
         const isFresh = db.isFreshAvailability(property.availabilityConfirmedAt);
-        const provenance = property.provenance || {
-            provider: property.provider || (property.dataSource === 'authorized_registry' ? 'state_rera_registry' : 'griha_saathi_direct'),
-            providerName: property.provider === 'data_gov_in'
-                ? 'Open Government Data Platform India (data.gov.in)'
-                : property.provider === 'state_rera_registry' || property.dataSource === 'authorized_registry'
-                    ? 'State RERA Public Project Registry'
-                    : 'Griha Saathi Authoritative Direct Registry',
-            providerListingId: property.providerListingId || property.id,
-            sourceUrl: property.sourceUrl || `/#find-property?id=${encodeURIComponent(property.id)}`,
-            sourcePublishedAt: property.sourcePublishedAt || property.submittedAt || property.createdAt,
-            sourceModifiedAt: property.sourceModifiedAt || property.updatedAt,
-            lastRetrievedAt: property.lastRetrievedAt || new Date().toISOString(),
+        const retrievalTime = new Date().toISOString();
+        const provenance = {
+            provider: 'griha_saathi_direct',
+            providerName: 'Griha Saathi first-party listing registry',
+            providerListingId: property.id,
+            sourceUrl: `/#find-property?id=${encodeURIComponent(property.id)}`,
+            sourcePublishedAt: property.submittedAt || property.createdAt,
+            sourceModifiedAt: property.updatedAt,
+            lastRetrievedAt: retrievalTime,
             lastSourceConfirmedAt: property.availabilityConfirmedAt,
             availabilityConfirmationStatus: isFresh ? 'confirmed' : 'unconfirmed',
             isFresh,

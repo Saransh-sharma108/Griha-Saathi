@@ -9,26 +9,26 @@ import {
   HelpCircle, 
   LayoutDashboard, 
   PlusCircle, 
-  User, 
   Menu, 
   X,
-  Globe,
-  Lock,
-  Bell,
-  ChevronDown,
-  LogOut,
-  Check,
-  CheckCircle2,
-  Bookmark,
-  Building,
-  RotateCcw,
-  Sparkles,
-  ExternalLink,
-  Clock,
-  ShieldAlert,
-  ArrowRight,
-  MessageSquare,
-  Shield
+  Globe, 
+  Lock, 
+  Bell, 
+  ChevronDown, 
+  LogOut, 
+  Check, 
+  CheckCircle2, 
+  Bookmark, 
+  RotateCcw, 
+  Sparkles, 
+  Clock, 
+  ShieldAlert, 
+  ArrowRight, 
+  ArrowUpRight,
+  MessageSquare, 
+  Activity,
+  FileText,
+  ChevronRight
 } from 'lucide-react';
 import { SupportedLanguage, UserProfile, InAppNotification, UserRole } from '@shared/types';
 import { translations } from '@shared/i18n';
@@ -55,6 +55,14 @@ interface HeaderProps {
   onUserUpdate?: (updatedUser: UserProfile) => void;
 }
 
+interface NavFlyoutItem {
+  title: string;
+  desc: string;
+  icon: React.ReactNode;
+  badge?: string;
+  badgeType?: 'emerald' | 'gold' | 'neutral';
+}
+
 export const Header: React.FC<HeaderProps> = ({
   currentSection,
   onNavigate,
@@ -72,16 +80,21 @@ export const Header: React.FC<HeaderProps> = ({
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
+  // Active Intelligent Flyout Menu State
+  const [activeFlyout, setActiveFlyout] = useState<NavSection | null>(null);
+  const flyoutTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Real Notifications State
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [switchingRole, setSwitchingRole] = useState(false);
 
-  // DOM Refs for Outside Click & Focus Management
+  // DOM Refs for Outside Click & Accessible Focus Management
   const langRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const navDockRef = useRef<HTMLElement>(null);
   const langTriggerRef = useRef<HTMLButtonElement>(null);
   const profileTriggerRef = useRef<HTMLButtonElement>(null);
   const notifTriggerRef = useRef<HTMLButtonElement>(null);
@@ -90,17 +103,106 @@ export const Header: React.FC<HeaderProps> = ({
 
   const t = translations[language].nav;
 
-  // Exact 8 Navigation Sections in Required Order
-  const navItems: { id: NavSection; label: string; icon: React.ReactNode; isPrimaryAction?: boolean }[] = [
+  // Exact 8 Prescribed Navigation Items in Sequence
+  const navItems: { id: NavSection; label: string; icon: React.ReactNode; isPrimaryAction?: boolean; hasFlyout?: boolean }[] = [
     { id: 'home', label: t.home, icon: <Home size={15} strokeWidth={2.2} /> },
-    { id: 'find-property', label: t.findProperty, icon: <Search size={15} strokeWidth={2.2} /> },
-    { id: 'verifications', label: t.verifications, icon: <ShieldCheck size={15} strokeWidth={2.2} /> },
+    { id: 'find-property', label: t.findProperty, icon: <Search size={15} strokeWidth={2.2} />, hasFlyout: true },
+    { id: 'verifications', label: t.verifications, icon: <ShieldCheck size={15} strokeWidth={2.2} />, hasFlyout: true },
     { id: 'connections', label: t.connections, icon: <Users size={15} strokeWidth={2.2} /> },
-    { id: 'saathi-ai', label: t.saathiAi, icon: <Bot size={15} strokeWidth={2.2} /> },
+    { id: 'saathi-ai', label: t.saathiAi, icon: <Bot size={15} strokeWidth={2.2} />, hasFlyout: true },
     { id: 'help', label: t.help, icon: <HelpCircle size={15} strokeWidth={2.2} /> },
-    { id: 'dashboard', label: t.dashboard, icon: <LayoutDashboard size={15} strokeWidth={2.2} /> },
-    { id: 'listing-property', label: t.listingProperty, icon: <PlusCircle size={15} strokeWidth={2.4} color="#E5A955" />, isPrimaryAction: true },
+    { id: 'dashboard', label: t.dashboard, icon: <LayoutDashboard size={15} strokeWidth={2.2} />, hasFlyout: true },
+    { 
+      id: 'listing-property', 
+      label: t.listingProperty, 
+      icon: <PlusCircle size={15} strokeWidth={2.4} />, 
+      isPrimaryAction: true 
+    },
   ];
+
+  // Curated Intelligent Flyouts for Key Hubs
+  const navFlyouts: Partial<Record<NavSection, NavFlyoutItem[]>> = {
+    'find-property': [
+      { 
+        title: 'All Verified Rentals', 
+        desc: 'Explore authentic listings across 5 target regions', 
+        icon: <Search size={14} />, 
+        badge: 'Live', 
+        badgeType: 'emerald' 
+      },
+      { 
+        title: 'Cadastral Verified Only', 
+        desc: 'Direct state revenue registry title clearance', 
+        icon: <ShieldCheck size={14} />, 
+        badge: 'Title Clear', 
+        badgeType: 'gold' 
+      },
+      { 
+        title: 'MTA 2021 Compliant', 
+        desc: 'Residential security deposits capped at 2 months', 
+        icon: <CheckCircle2 size={14} />, 
+        badge: 'Statutory', 
+        badgeType: 'neutral' 
+      }
+    ],
+    'verifications': [
+      { 
+        title: 'Revenue Registry Cross-Check', 
+        desc: 'Jamabandi, PLRS, DORIS & Himbhoomi integration', 
+        icon: <ShieldCheck size={14} />, 
+        badge: '5 States', 
+        badgeType: 'emerald' 
+      },
+      { 
+        title: 'Physical Field Inspection', 
+        desc: 'Geo-stamped premise verification standards', 
+        icon: <Clock size={14} /> 
+      },
+      { 
+        title: 'Anti-Fraud Protections', 
+        desc: 'DPDP 2023 privacy masking & provenance tracking', 
+        icon: <Lock size={14} /> 
+      }
+    ],
+    'saathi-ai': [
+      { 
+        title: 'Conversational Property Discovery', 
+        desc: 'Natural language queries in English, Hindi & Hinglish', 
+        icon: <Bot size={14} />, 
+        badge: 'AI 2.0', 
+        badgeType: 'emerald' 
+      },
+      { 
+        title: 'Lease Agreement Advisor', 
+        desc: 'Statutory clause verification & dispute prevention', 
+        icon: <FileText size={14} /> 
+      },
+      { 
+        title: 'Side-by-Side Property Comparison', 
+        desc: 'Factual specs, monthly rent & deposit matrix analysis', 
+        icon: <Sparkles size={14} /> 
+      }
+    ],
+    'dashboard': [
+      { 
+        title: 'Overview & Saved Searches', 
+        desc: 'Instant listing alerts & real-time discovery matches', 
+        icon: <Bookmark size={14} />, 
+        badge: 'Alerts', 
+        badgeType: 'emerald' 
+      },
+      { 
+        title: 'Visits & In-App Messaging', 
+        desc: 'Track scheduled physical visits & lease negotiations', 
+        icon: <MessageSquare size={14} /> 
+      },
+      { 
+        title: 'Performance Analytics', 
+        desc: 'Owner listing velocity & tenant engagement metrics', 
+        icon: <Activity size={14} /> 
+      }
+    ]
+  };
 
   // Fetch real notifications if user is authenticated
   useEffect(() => {
@@ -125,7 +227,7 @@ export const Header: React.FC<HeaderProps> = ({
         setUnreadCount(data.unreadCount || 0);
       }
     } catch (e) {
-      // Graceful fallback without crashing header
+      // Graceful fallback
     } finally {
       setLoadingNotifs(false);
     }
@@ -168,7 +270,23 @@ export const Header: React.FC<HeaderProps> = ({
     }
   };
 
-  // Close dropdowns on outside click or Escape key with accessible focus return
+  // Flyout Timer Management (Prevents flickering on mouse movements)
+  const handleFlyoutEnter = (sectionId: NavSection) => {
+    if (!navFlyouts[sectionId]) return;
+    if (flyoutTimerRef.current) clearTimeout(flyoutTimerRef.current);
+    flyoutTimerRef.current = setTimeout(() => {
+      setActiveFlyout(sectionId);
+    }, 120);
+  };
+
+  const handleFlyoutLeave = () => {
+    if (flyoutTimerRef.current) clearTimeout(flyoutTimerRef.current);
+    flyoutTimerRef.current = setTimeout(() => {
+      setActiveFlyout(null);
+    }, 180);
+  };
+
+  // Close dropdowns on outside click or Escape key
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (langRef.current && !langRef.current.contains(e.target as Node)) {
@@ -180,10 +298,16 @@ export const Header: React.FC<HeaderProps> = ({
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotifDropdownOpen(false);
       }
+      if (navDockRef.current && !navDockRef.current.contains(e.target as Node)) {
+        setActiveFlyout(null);
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (activeFlyout) {
+          setActiveFlyout(null);
+        }
         if (langDropdownOpen) {
           setLangDropdownOpen(false);
           langTriggerRef.current?.focus();
@@ -209,12 +333,12 @@ export const Header: React.FC<HeaderProps> = ({
       document.removeEventListener('mousedown', handleOutsideClick);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [langDropdownOpen, profileDropdownOpen, notifDropdownOpen, mobileMenuOpen]);
+  }, [langDropdownOpen, profileDropdownOpen, notifDropdownOpen, mobileMenuOpen, activeFlyout]);
 
-  // Close mobile navigation drawer automatically on viewport resize to desktop
+  // Viewport resize watcher
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth > 1140 && mobileMenuOpen) {
+      if (window.innerWidth > 1024 && mobileMenuOpen) {
         setMobileMenuOpen(false);
       }
     };
@@ -222,7 +346,7 @@ export const Header: React.FC<HeaderProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, [mobileMenuOpen]);
 
-  // Reactive scroll listener to add depth and padding compression on scroll
+  // Reactive scroll listener for elevated glass depth
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 15);
@@ -233,13 +357,14 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleNavClick = (section: NavSection) => {
     onNavigate(section);
+    setActiveFlyout(null);
     setMobileMenuOpen(false);
     setProfileDropdownOpen(false);
     setNotifDropdownOpen(false);
     setLangDropdownOpen(false);
   };
 
-  // Handle switching active role if multi-role supported
+  // Role switch handler
   const handleRoleSwitch = async () => {
     if (!token || !user) return;
     const targetRole: UserRole = (user.activeRole || user.role) === 'owner' ? 'tenant' : 'owner';
@@ -293,42 +418,83 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className={`gs-header gs-header-wrapper ${isScrolled ? 'gs-header-scrolled' : ''}`} role="banner">
-      <div className="gs-command-bar gs-nav-container">
+      <div className="gs-dual-island-shell" id="gs-dual-island-navigation">
+        
         {/* =====================================================================
-            ZONE A: BRAND IDENTITY — REFINED SQUIRCLE ICON & WORDMARK
+            ISLAND A: THE GRIHA SAATHI BRAND ANCHOR
+            Left-anchored independent floating glass pill
             ===================================================================== */}
-        <div className="gs-nav-left">
-          <a 
-            href="#home" 
-            onClick={(e) => { e.preventDefault(); handleNavClick('home'); }} 
-            className="gs-logo-link"
-            aria-label="Griha Saathi Home — Back to Property Discovery"
-          >
-            <div className="gs-logo-icon" aria-hidden="true">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M3 10.5L12 3L21 10.5V20.2C21 20.6418 20.6418 21 20.2 21H3.8C3.35817 21 3 20.6418 3 20.2V10.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M9 21V12.5C9 10.8431 10.3431 9.5 12 9.5C13.6569 9.5 15 10.8431 15 12.5V21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                <circle cx="12" cy="6.2" r="1.3" fill="#E5A955"/>
-              </svg>
+        <div 
+          className="gs-island-brand" 
+          id="island-brand-anchor"
+          role="region"
+          aria-label="Griha Saathi Brand Anchor"
+        >
+          <div className="gs-nav-left">
+            <a 
+              href="#home" 
+              onClick={(e) => { e.preventDefault(); handleNavClick('home'); }} 
+              className="gs-logo-link"
+              aria-label="Griha Saathi Home — Back to Property Discovery"
+            >
+              <div className="gs-logo-icon" aria-hidden="true">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M3 10.5L12 3L21 10.5V20.2C21 20.6418 20.6418 21 20.2 21H3.8C3.35817 21 3 20.6418 3 20.2V10.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M9 21V12.5C9 10.8431 10.3431 9.5 12 9.5C13.6569 9.5 15 10.8431 15 12.5V21" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="12" cy="6.2" r="1.3" fill="#E5A955"/>
+                </svg>
+              </div>
+              <div className="gs-logo-text">
+                <span className="gs-brand-title">GRIHA SAATHI</span>
+                <span className="gs-brand-tag">गृह साथी • AUDITED PROPTECH</span>
+              </div>
+            </a>
+
+            {/* Signature Saathi Signal — Ambient Trust Beacon */}
+            <div 
+              className="gs-saathi-signal" 
+              title="State Land Registry & MTA Verification Gate Online"
+              aria-label="5-Region Cadastral Trust Network Active"
+            >
+              <span className="gs-saathi-signal-dot">
+                <span className="gs-saathi-signal-pulse" />
+              </span>
+              <span className="gs-saathi-signal-text">Active Trust</span>
             </div>
-            <div className="gs-logo-text">
-              <span className="gs-brand-title">GRIHA SAATHI</span>
-              <span className="gs-brand-tag">गृह साथी • AUDITED PROPTECH</span>
-            </div>
-          </a>
+          </div>
         </div>
 
         {/* =====================================================================
-            ZONE B: PRIMARY NAVIGATION DOCK — EXACT 8 PRESCRIBED ITEMS
+            ISLAND B: THE INTELLIGENT NAVIGATION COMMAND BAR
+            Right-anchored independent floating glass pill containing primary dock & controls
             ===================================================================== */}
-        <nav className="gs-nav-centre" aria-label="Main Command Navigation">
+        <div 
+          className="gs-island-nav gs-command-bar" 
+          id="island-nav-command"
+          role="region"
+          aria-label="Griha Saathi Command Bar"
+        >
+          {/* ZONE B: PRIMARY NAVIGATION DOCK WITH INTELLIGENT FLYOUTS */}
+          <nav 
+            ref={navDockRef}
+            className="gs-nav-centre" 
+            aria-label="Main Command Navigation"
+          >
           <ul className="gs-nav-links" role="menubar">
             {navItems.map((item) => {
               const isActive = currentSection === item.id;
               const isListingAction = item.isPrimaryAction;
+              const hasFlyout = Boolean(navFlyouts[item.id]);
+              const isFlyoutOpen = activeFlyout === item.id;
 
               return (
-                <li key={item.id} className="gs-nav-item" role="none">
+                <li 
+                  key={item.id} 
+                  className={`gs-nav-item ${isListingAction ? 'gs-nav-item-action' : ''}`}
+                  role="none"
+                  onMouseEnter={() => hasFlyout && handleFlyoutEnter(item.id)}
+                  onMouseLeave={handleFlyoutLeave}
+                >
                   <button
                     role="menuitem"
                     onClick={() => handleNavClick(item.id)}
@@ -338,13 +504,63 @@ export const Header: React.FC<HeaderProps> = ({
                         : `gs-nav-btn ${isActive ? 'active' : ''}`
                     }
                     aria-current={isActive ? 'page' : undefined}
+                    aria-haspopup={hasFlyout ? 'true' : undefined}
+                    aria-expanded={hasFlyout ? isFlyoutOpen : undefined}
                     title={item.label}
                   >
                     <span className="gs-nav-item-icon" aria-hidden="true">
                       {item.icon}
                     </span>
                     <span className="gs-nav-item-text">{item.label}</span>
+                    {isListingAction && (
+                      <ArrowUpRight size={13} className="gs-nav-item-arrow" aria-hidden="true" />
+                    )}
+                    {hasFlyout && (
+                      <ChevronDown size={11} className={`gs-nav-flyout-chevron ${isFlyoutOpen ? 'rotated' : ''}`} aria-hidden="true" />
+                    )}
                   </button>
+
+                  {/* Intelligent Flyout Shortcuts Menu */}
+                  {hasFlyout && isFlyoutOpen && (
+                    <div 
+                      className="gs-nav-flyout" 
+                      role="menu"
+                      aria-label={`${item.label} Shortcuts`}
+                      onMouseEnter={() => handleFlyoutEnter(item.id)}
+                      onMouseLeave={handleFlyoutLeave}
+                    >
+                      <div className="gs-nav-flyout-header">
+                        <span className="gs-nav-flyout-title">{item.label} Hub</span>
+                        <span className="gs-nav-flyout-badge">Verified Hub</span>
+                      </div>
+                      <div className="gs-nav-flyout-list">
+                        {navFlyouts[item.id]!.map((flyout, idx) => (
+                          <button
+                            key={idx}
+                            role="menuitem"
+                            type="button"
+                            className="gs-nav-flyout-item"
+                            onClick={() => handleNavClick(item.id)}
+                          >
+                            <span className="gs-nav-flyout-icon">
+                              {flyout.icon}
+                            </span>
+                            <div className="gs-nav-flyout-content">
+                              <div className="gs-nav-flyout-item-top">
+                                <span className="gs-nav-flyout-item-title">{flyout.title}</span>
+                                {flyout.badge && (
+                                  <span className={`gs-badge gs-badge-${flyout.badgeType || 'emerald'} gs-flyout-tag`}>
+                                    {flyout.badge}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="gs-nav-flyout-item-desc">{flyout.desc}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -352,7 +568,7 @@ export const Header: React.FC<HeaderProps> = ({
         </nav>
 
         {/* =====================================================================
-            ZONE C: GLOBAL CONTROLS — EXTREME RIGHT
+            ZONE C: GLOBAL CONTROLS — NOTIFICATIONS, LANGUAGE & ACCOUNT
             ===================================================================== */}
         <div className="gs-nav-right">
           
@@ -366,6 +582,7 @@ export const Header: React.FC<HeaderProps> = ({
                   setNotifDropdownOpen(!notifDropdownOpen);
                   setProfileDropdownOpen(false);
                   setLangDropdownOpen(false);
+                  setActiveFlyout(null);
                 }}
                 className="gs-notif-btn"
                 aria-label={`Notifications: ${unreadCount} unread`}
@@ -373,7 +590,7 @@ export const Header: React.FC<HeaderProps> = ({
                 aria-haspopup="true"
                 title="View recent notifications"
               >
-                <Bell size={18} strokeWidth={2} />
+                <Bell size={17} strokeWidth={2} />
                 {unreadCount > 0 && (
                   <span className="gs-notif-badge">
                     {unreadCount > 9 ? '9+' : unreadCount}
@@ -390,7 +607,7 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <div className="gs-notif-header">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <strong style={{ fontSize: '0.92rem', color: 'var(--gs-forest-deep)' }}>
+                      <strong style={{ fontSize: '0.92rem', color: 'var(--gs-text-primary)' }}>
                         Notifications
                       </strong>
                       {unreadCount > 0 ? (
@@ -407,7 +624,7 @@ export const Header: React.FC<HeaderProps> = ({
                       <button
                         type="button"
                         onClick={handleMarkAllRead}
-                        style={{ fontSize: '0.78rem', color: 'var(--gs-forest-primary)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
+                        style={{ fontSize: '0.78rem', color: 'var(--gs-accent-bright)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
                       >
                         Mark all read
                       </button>
@@ -417,7 +634,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <div className="gs-notif-list">
                     {loadingNotifs ? (
                       <div style={{ padding: '2rem 1.5rem', textAlign: 'center', color: 'var(--gs-text-muted)', fontSize: '0.85rem' }}>
-                        Loading real notifications...
+                        Loading notifications...
                       </div>
                     ) : notifications.length > 0 ? (
                       notifications.map((notif) => (
@@ -436,13 +653,13 @@ export const Header: React.FC<HeaderProps> = ({
                         >
                           <div style={{ marginTop: '0.2rem', flexShrink: 0 }}>
                             {notif.type.includes('alert') || notif.type.includes('warning') ? (
-                              <ShieldAlert size={16} color="#B45309" />
+                              <ShieldAlert size={16} color="#FBBF24" />
                             ) : notif.type.includes('visit') ? (
-                              <Clock size={16} color="var(--gs-forest-primary)" />
+                              <Clock size={16} color="var(--gs-accent)" />
                             ) : notif.type.includes('connection') || notif.type.includes('message') ? (
-                              <MessageSquare size={16} color="var(--gs-forest-primary)" />
+                              <MessageSquare size={16} color="var(--gs-accent)" />
                             ) : (
-                              <CheckCircle2 size={16} color="#15803D" />
+                              <CheckCircle2 size={16} color="#34D399" />
                             )}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
@@ -462,8 +679,8 @@ export const Header: React.FC<HeaderProps> = ({
                       ))
                     ) : (
                       <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--gs-text-muted)' }}>
-                        <Bell size={28} style={{ margin: '0 auto 0.6rem', opacity: 0.35, color: 'var(--gs-forest-primary)' }} />
-                        <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--gs-forest-deep)' }}>All caught up!</div>
+                        <Bell size={28} style={{ margin: '0 auto 0.6rem', opacity: 0.35, color: 'var(--gs-accent)' }} />
+                        <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--gs-text-primary)' }}>All caught up!</div>
                         <div style={{ fontSize: '0.8rem', marginTop: '0.25rem', color: 'var(--gs-text-secondary)' }}>
                           No pending visit alerts or unread connection requests.
                         </div>
@@ -478,7 +695,7 @@ export const Header: React.FC<HeaderProps> = ({
                       style={{ 
                         fontSize: '0.82rem', 
                         fontWeight: 700, 
-                        color: 'var(--gs-forest-primary)', 
+                        color: 'var(--gs-accent-bright)', 
                         background: 'none', 
                         border: 'none', 
                         cursor: 'pointer',
@@ -505,6 +722,7 @@ export const Header: React.FC<HeaderProps> = ({
                 setLangDropdownOpen(!langDropdownOpen);
                 setProfileDropdownOpen(false);
                 setNotifDropdownOpen(false);
+                setActiveFlyout(null);
               }}
               className="gs-dropdown-trigger"
               aria-label={`Language selector. Current language: ${languageLabels[language].label}`}
@@ -512,9 +730,9 @@ export const Header: React.FC<HeaderProps> = ({
               aria-haspopup="true"
               title="Select interface language"
             >
-              <Globe size={15} color="var(--gs-forest-primary)" strokeWidth={2} />
-              <span style={{ fontWeight: 700 }}>{languageLabels[language].code}</span>
-              <ChevronDown size={12} color="var(--gs-text-muted)" />
+              <Globe size={14} color="var(--gs-accent-bright)" strokeWidth={2} />
+              <span className="gs-lang-code">{languageLabels[language].code}</span>
+              <ChevronDown size={11} color="var(--gs-text-muted)" />
             </button>
 
             {/* Language Popover Menu */}
@@ -543,7 +761,7 @@ export const Header: React.FC<HeaderProps> = ({
                       }}
                     >
                       <span>{languageLabels[langKey].native}</span>
-                      {isCurrent && <Check size={14} color="var(--gs-forest-primary)" strokeWidth={2.5} />}
+                      {isCurrent && <Check size={14} color="var(--gs-accent)" strokeWidth={2.5} />}
                     </button>
                   );
                 })}
@@ -561,6 +779,7 @@ export const Header: React.FC<HeaderProps> = ({
                   setProfileDropdownOpen(!profileDropdownOpen);
                   setLangDropdownOpen(false);
                   setNotifDropdownOpen(false);
+                  setActiveFlyout(null);
                 }}
                 className="gs-profile-btn"
                 aria-label={`Account menu for ${user.fullName || user.identifier}`}
@@ -580,7 +799,7 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   {user.activeRole || user.role}
                 </span>
-                <ChevronDown size={13} color="var(--gs-text-muted)" />
+                <ChevronDown size={12} color="var(--gs-text-muted)" />
               </button>
 
               {/* Account Command Dropdown Menu */}
@@ -615,9 +834,10 @@ export const Header: React.FC<HeaderProps> = ({
                       onClick={() => handleNavClick('dashboard')}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                        <LayoutDashboard size={15} color="var(--gs-forest-primary)" />
+                        <LayoutDashboard size={15} color="var(--gs-accent)" />
                         <span>My Dashboard</span>
                       </span>
+                      <ChevronRight size={13} color="var(--gs-text-muted)" />
                     </button>
 
                     <button
@@ -627,9 +847,10 @@ export const Header: React.FC<HeaderProps> = ({
                       onClick={() => handleNavClick('connections')}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                        <Users size={15} color="var(--gs-forest-primary)" />
+                        <Users size={15} color="var(--gs-accent)" />
                         <span>Connections & Visits</span>
                       </span>
+                      <ChevronRight size={13} color="var(--gs-text-muted)" />
                     </button>
 
                     <button
@@ -639,9 +860,10 @@ export const Header: React.FC<HeaderProps> = ({
                       onClick={() => handleNavClick('listing-property')}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-                        <PlusCircle size={15} color="var(--gs-forest-primary)" />
+                        <PlusCircle size={15} color="var(--gs-accent)" />
                         <span>List Verified Property</span>
                       </span>
+                      <ChevronRight size={13} color="var(--gs-text-muted)" />
                     </button>
                   </div>
 
@@ -678,7 +900,7 @@ export const Header: React.FC<HeaderProps> = ({
                         setProfileDropdownOpen(false);
                         onSignOut();
                       }}
-                      style={{ color: '#DC2626' }}
+                      style={{ color: '#F87171' }}
                     >
                       <span style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                         <LogOut size={15} />
@@ -692,10 +914,10 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <button 
               onClick={onOpenAuth} 
-              className="gs-btn gs-btn-primary gs-btn-sm gs-nav-auth-btn"
+              className="gs-btn gs-nav-auth-btn"
               title="Sign in or register an account"
             >
-              <Lock size={14} />
+              <Lock size={13} />
               <span className="gs-nav-auth-text">{t.login || 'Sign In'}</span>
             </button>
           )}
@@ -708,7 +930,7 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label={t.listingProperty}
             title={t.listingProperty}
           >
-            <PlusCircle size={15} strokeWidth={2.4} color="#E5A955" />
+            <PlusCircle size={15} strokeWidth={2.4} />
             <span className="gs-mobile-quick-list-text">{t.listingProperty.split(' ')[0]}</span>
           </button>
 
@@ -725,6 +947,9 @@ export const Header: React.FC<HeaderProps> = ({
             {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
+        {/* End of Island B */}
+        </div>
+      {/* End of gs-dual-island-shell */}
       </div>
 
       {/* =========================================================================
@@ -756,10 +981,10 @@ export const Header: React.FC<HeaderProps> = ({
                   </svg>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ fontFamily: 'var(--gs-font-heading)', fontWeight: 800, color: 'var(--gs-forest-deep)', fontSize: '1.1rem', lineHeight: 1.1 }}>
+                  <span style={{ fontFamily: 'var(--gs-font-heading)', fontWeight: 800, color: 'var(--gs-text-primary)', fontSize: '1.05rem', lineHeight: 1.1 }}>
                     GRIHA SAATHI
                   </span>
-                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#40916C', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#52B788', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                     गृह साथी • AUDITED PROPTECH
                   </span>
                 </div>
@@ -783,10 +1008,10 @@ export const Header: React.FC<HeaderProps> = ({
                   alignItems: 'center', 
                   justifyContent: 'space-between',
                   padding: '0.85rem 1rem', 
-                  backgroundColor: 'var(--gs-forest-soft)', 
+                  backgroundColor: 'var(--gs-surface-elevated)', 
                   borderRadius: 'var(--gs-radius-md)',
                   marginBottom: '1rem',
-                  border: '1px solid var(--gs-forest-muted)'
+                  border: '1px solid var(--gs-border)'
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -794,10 +1019,10 @@ export const Header: React.FC<HeaderProps> = ({
                     {getInitials(user.fullName, user.identifier)}
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--gs-forest-deep)' }}>
+                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--gs-text-primary)' }}>
                       {user.fullName || user.identifier}
                     </div>
-                    <div style={{ fontSize: '0.74rem', color: 'var(--gs-forest-mid)', fontWeight: 600, textTransform: 'uppercase' }}>
+                    <div style={{ fontSize: '0.74rem', color: 'var(--gs-accent-bright)', fontWeight: 600, textTransform: 'uppercase' }}>
                       {user.activeRole || user.role} Account
                     </div>
                   </div>
@@ -833,7 +1058,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="gs-btn gs-btn-primary gs-btn-sm"
                 style={{ width: '100%', justifyContent: 'center' }}
               >
-                <Search size={15} />
+                <Search size={14} />
                 <span>Find Property</span>
               </button>
               <button
@@ -842,14 +1067,14 @@ export const Header: React.FC<HeaderProps> = ({
                 className="gs-btn gs-btn-secondary gs-btn-sm"
                 style={{ width: '100%', justifyContent: 'center' }}
               >
-                <Bot size={15} />
+                <Bot size={14} />
                 <span>Saathi AI</span>
               </button>
             </div>
 
             <div style={{ marginBottom: '0.4rem', paddingBottom: '0.4rem', borderBottom: '1px solid var(--gs-border-subtle)' }}>
-              <span style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--gs-text-muted)', letterSpacing: '0.06em' }}>
-                Main Navigation ({navItems.length} destinations)
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--gs-text-muted)', letterSpacing: '0.06em' }}>
+                Navigation Hub ({navItems.length} destinations)
               </span>
             </div>
 
@@ -870,29 +1095,38 @@ export const Header: React.FC<HeaderProps> = ({
                       gap: '0.75rem',
                       padding: '0.7rem 0.95rem',
                       borderRadius: 'var(--gs-radius-md)',
-                      backgroundColor: isCurrent ? 'var(--gs-forest-soft)' : isListing ? 'linear-gradient(135deg, rgba(27,67,50,0.08) 0%, rgba(27,67,50,0.04) 100%)' : 'transparent',
-                      color: isCurrent ? 'var(--gs-forest-deep)' : isListing ? 'var(--gs-forest-primary)' : 'var(--gs-text-primary)',
+                      backgroundColor: isCurrent 
+                        ? 'rgba(72, 201, 149, 0.16)' 
+                        : isListing 
+                        ? 'rgba(27, 67, 50, 0.45)' 
+                        : 'transparent',
+                      color: isCurrent 
+                        ? '#FFFFFF' 
+                        : isListing 
+                        ? '#DCFCE7' 
+                        : 'var(--gs-text-primary)',
                       fontWeight: isCurrent || isListing ? 700 : 500,
                       textAlign: 'left',
                       width: '100%',
                       border: isListing 
-                        ? '1.5px solid rgba(200, 138, 53, 0.5)' 
+                        ? '1.5px solid rgba(82, 183, 136, 0.6)' 
                         : isCurrent 
-                        ? '1px solid rgba(27, 67, 50, 0.15)' 
+                        ? '1px solid rgba(82, 183, 136, 0.45)' 
                         : '1px solid transparent',
                       position: 'relative',
+                      transition: 'all 0.18s ease'
                     }}
                   >
-                    <span style={{ color: isCurrent || isListing ? 'var(--gs-forest-primary)' : 'var(--gs-text-muted)', display: 'inline-flex' }}>
+                    <span style={{ color: isCurrent || isListing ? 'var(--gs-accent-bright)' : 'var(--gs-text-muted)', display: 'inline-flex' }}>
                       {item.icon}
                     </span>
                     <span style={{ fontSize: '0.92rem', flex: 1 }}>{item.label}</span>
                     {isListing ? (
-                      <span className="gs-badge gs-badge-emerald" style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem', border: '1px solid rgba(200, 138, 53, 0.4)' }}>
+                      <span className="gs-badge gs-badge-emerald" style={{ fontSize: '0.65rem', padding: '0.15rem 0.5rem', border: '1px solid rgba(82, 183, 136, 0.5)' }}>
                         Action
                       </span>
                     ) : isCurrent ? (
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--gs-forest-primary)' }} />
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--gs-accent)' }} />
                     ) : null}
                   </button>
                 );
@@ -901,8 +1135,8 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Mobile Language Switcher Row */}
             <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid var(--gs-border-subtle)' }}>
-              <div style={{ fontSize: '0.74rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--gs-text-muted)', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
-                Language Preference
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--gs-text-muted)', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
+                Language Preference / भाषा
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem' }}>
                 {(['en', 'hi', 'hi-en'] as SupportedLanguage[]).map((langKey) => (
@@ -913,14 +1147,15 @@ export const Header: React.FC<HeaderProps> = ({
                       onLanguageChange(langKey);
                     }}
                     style={{
-                      padding: '0.5rem 0.25rem',
+                      padding: '0.55rem 0.35rem',
                       borderRadius: 'var(--gs-radius-sm)',
                       fontSize: '0.82rem',
                       fontWeight: language === langKey ? 700 : 500,
-                      backgroundColor: language === langKey ? 'var(--gs-forest-primary)' : 'var(--gs-bg-subtle)',
+                      backgroundColor: language === langKey ? 'var(--gs-forest-mid)' : 'rgba(255, 255, 255, 0.05)',
                       color: language === langKey ? '#FFFFFF' : 'var(--gs-text-primary)',
-                      border: '1px solid var(--gs-border)',
+                      border: language === langKey ? '1px solid var(--gs-accent)' : '1px solid var(--gs-border-subtle)',
                       textAlign: 'center',
+                      cursor: 'pointer'
                     }}
                   >
                     {languageLabels[langKey].code}
@@ -939,7 +1174,7 @@ export const Header: React.FC<HeaderProps> = ({
                     onSignOut();
                   }}
                   className="gs-btn gs-btn-outline"
-                  style={{ width: '100%', justifyContent: 'center', color: '#DC2626', borderColor: '#FCA5A5' }}
+                  style={{ width: '100%', justifyContent: 'center', color: '#F87171', borderColor: 'rgba(248, 113, 113, 0.35)' }}
                 >
                   <LogOut size={15} />
                   <span>{t.logout || 'Sign Out'}</span>

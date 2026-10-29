@@ -23,23 +23,18 @@ export class StateReraAdapter {
         this.gatewayUrl = process.env.STATE_RERA_GATEWAY_URL;
     }
     isConfigured() {
-        return Boolean(this.apiKey &&
-            this.gatewayUrl &&
-            this.apiKey !== 'YOUR_RERA_API_KEY');
+        return false;
     }
     getStatus() {
-        const configured = this.isConfigured();
         return {
             id: this.id,
             name: this.name,
             category: this.category,
             targetRegions: this.targetRegions,
-            configured,
-            status: configured ? 'connected' : 'awaiting_credentials',
-            statusMessage: configured
-                ? 'Connected to State RERA data exchange gateway.'
-                : 'Awaiting institutional gateway agreements with State RERA authorities (HRERA, PRERA, DRERA, HPRERA, JKRERA). Keys required in STATE_RERA_GATEWAY_KEY & STATE_RERA_GATEWAY_URL.',
-            requiredCredentials: ['STATE_RERA_GATEWAY_KEY', 'STATE_RERA_GATEWAY_URL'],
+            configured: false,
+            status: 'unsupported',
+            statusMessage: 'Not connected. No authorized rental-listing feed or response mapper is configured. State RERA project records are not a rental listings feed.',
+            requiredCredentials: [],
             documentationRef: '/docs/data_providers_and_integrations.md#state-rera-registries',
             lastCheckedAt: new Date().toISOString(),
         };

@@ -7,11 +7,11 @@
   <title>Griha Saathi — Trustworthy Rental Housing for Bharat</title>
   <meta name="description"
     content="Griha Saathi connects genuine tenants and authentic landlords across Jammu & Kashmir, Haryana, Himachal Pradesh, Delhi, and Punjab through authoritative land-registry cross-checks and physical verification." />
-  <!-- Fonts: Comic Sans MS Primary, Noto Sans Devanagari (Multilingual Fallback) -->
+  <!-- Premium Typography: Manrope (Headings & Display), Inter (Interface & Body), Noto Sans Devanagari (Multilingual) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
     rel="stylesheet" />
   <link rel="icon" type="image/svg+xml"
     href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231B4332'><path d='M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z'/></svg>" />
@@ -27,55 +27,160 @@
         return;
       }
 
-      // 2. If accessed via Live Server (port 5500) or file:// protocol
-      var isLiveServer = port === '5500' || isFileProto || (!isVitePort && window.location.pathname.includes('/client/index.html'));
+      // 2. Detect non-Vite execution: file:// protocol, Live Server (port 5500), or opening client folder directly
+      var isDirectFileOrLiveServer = isFileProto || port === '5500' || (!isVitePort && window.location.pathname.includes('/client/index.html'));
 
-      if (isLiveServer) {
-        var checkAndConnect = function () {
-          fetch('http://localhost:3000/api/health', { method: 'GET', mode: 'cors' })
-            .then(function (res) {
-              if (res.ok) {
-                window.location.replace('http://localhost:3000/' + window.location.hash);
-              } else {
-                renderOfflineNotice();
-              }
-            })
-            .catch(function () {
-              renderOfflineNotice();
-            });
-        };
+      if (isDirectFileOrLiveServer) {
+        var pollTimer = null;
+        var attemptCount = 0;
+        var MAX_ATTEMPTS = 15;
+        var isChecking = false;
+
+        function checkAndConnect(isManual) {
+          if (isChecking) return;
+          isChecking = true;
+
+          var statusEl = document.getElementById('gs-reconnect-status');
+          var retryBtn = document.getElementById('gs-retry-btn');
+
+          if (statusEl) {
+            statusEl.innerHTML = '<span class="gs-pulse-dot" style="background: #3B82F6;"></span> Checking http://localhost:3000...';
+            statusEl.style.color = '#1D4ED8';
+          }
+          if (retryBtn) retryBtn.disabled = true;
+
+          var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          var timeoutId = controller ? setTimeout(function () { controller.abort(); }, 2500) : null;
+
+          fetch('http://localhost:3000/api/health', {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-store',
+            signal: controller ? controller.signal : undefined
+          })
+          .then(function (res) {
+            if (timeoutId) clearTimeout(timeoutId);
+            if (res.ok) {
+              onServerOnline();
+            } else {
+              return fetch('http://localhost:3000/', { method: 'GET', mode: 'cors', cache: 'no-store' });
+            }
+          })
+          .then(function (rootRes) {
+            if (rootRes && rootRes.ok) {
+              onServerOnline();
+            } else if (rootRes) {
+              onServerOffline(isManual);
+            }
+          })
+          .catch(function () {
+            if (timeoutId) clearTimeout(timeoutId);
+            onServerOffline(isManual);
+          })
+          .finally(function () {
+            isChecking = false;
+            if (retryBtn) retryBtn.disabled = false;
+          });
+        }
+
+        function onServerOnline() {
+          if (pollTimer) clearTimeout(pollTimer);
+          var statusEl = document.getElementById('gs-reconnect-status');
+          if (statusEl) {
+            statusEl.innerHTML = '<span class="gs-pulse-dot" style="background: #10B981;"></span> ✅ Server active! Redirecting to Griha Saathi...';
+            statusEl.style.color = '#15803D';
+          }
+          setTimeout(function () {
+            window.location.replace('http://localhost:3000/' + window.location.hash);
+          }, 350);
+        }
+
+        function onServerOffline(isManual) {
+          renderOfflineNotice();
+          var statusEl = document.getElementById('gs-reconnect-status');
+          if (isManual) {
+            attemptCount = 0;
+          }
+          attemptCount++;
+
+          if (attemptCount <= MAX_ATTEMPTS) {
+            if (statusEl) {
+              statusEl.innerHTML = '<span class="gs-pulse-dot" style="background: #F59E0B;"></span> Server offline on localhost:3000. Checking automatically (attempt ' + attemptCount + ' of ' + MAX_ATTEMPTS + ')...';
+              statusEl.style.color = '#B45309';
+            }
+            pollTimer = setTimeout(function () { checkAndConnect(false); }, 2500);
+          } else {
+            if (statusEl) {
+              statusEl.innerHTML = '⏸️ Auto-check paused. Launch <strong>start.cmd</strong> and click <strong>Retry Connection Now</strong>.';
+              statusEl.style.color = '#64748B';
+            }
+          }
+        }
 
         function renderOfflineNotice() {
           var root = document.getElementById('root');
-          if (!root) return;
+          if (!root || root.getAttribute('data-offline-rendered') === 'true') return;
+          root.setAttribute('data-offline-rendered', 'true');
+
           root.innerHTML = `
-            <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999999; background: #FAF9F6; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Comic Sans MS', 'Comic Sans', cursive, sans-serif; padding: 1.5rem; box-sizing: border-box;">
-              <div style="background: #FFFFFF; border: 1px solid #E1E6E2; border-radius: 20px; padding: 2.25rem; max-width: 580px; width: 100%; box-shadow: 0 16px 36px rgba(16, 38, 26, 0.08); text-align: center;">
-                <div style="width: 56px; height: 56px; background: #EBF3EE; color: #1B4332; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 1rem;">🏠</div>
-                <h2 style="font-family: 'Comic Sans MS', 'Comic Sans', cursive, sans-serif; color: #10261A; font-size: 1.5rem; margin: 0 0 0.5rem; font-weight: 700;">Griha Saathi Platform</h2>
-                <p style="color: #4A5568; font-size: 0.95rem; line-height: 1.6; margin: 0 0 1.25rem;">
+            <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 999999; background: #FAF9F6; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Inter', system-ui, -apple-system, sans-serif; padding: 1.5rem; box-sizing: border-box; overflow-y: auto;">
+              <style>
+                @keyframes gsPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.9); } }
+                .gs-pulse-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; animation: gsPulse 1.6s infinite ease-in-out; vertical-align: middle; }
+                .gs-btn-primary { background: #1B4332; color: #FFFFFF; text-decoration: none; font-weight: 700; font-size: 0.95rem; padding: 0.85rem 1.4rem; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 14px rgba(27,67,50,0.22); }
+                .gs-btn-primary:hover { background: #2D6A4F; transform: translateY(-1px); }
+                .gs-btn-secondary { background: #FFFFFF; color: #1B4332; border: 1.5px solid #1B4332; font-weight: 600; font-size: 0.9rem; padding: 0.75rem 1.25rem; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; transition: all 0.2s; }
+                .gs-btn-secondary:hover { background: #EBF3EE; }
+                .gs-btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
+              </style>
+              <div style="background: #FFFFFF; border: 1px solid #E1E6E2; border-radius: 20px; padding: 2.25rem; max-width: 600px; width: 100%; box-shadow: 0 16px 36px rgba(16, 38, 26, 0.08); text-align: center;">
+                <div style="width: 58px; height: 58px; background: #EBF3EE; color: #1B4332; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 1rem; box-shadow: 0 4px 12px rgba(27,67,50,0.12);">🏠</div>
+                <h1 style="color: #10261A; font-size: 1.5rem; margin: 0 0 0.4rem; font-weight: 800; letter-spacing: -0.02em;">Griha Saathi Platform</h1>
+                <p style="color: #4A5568; font-size: 0.92rem; line-height: 1.6; margin: 0 0 1.25rem;">
                   Modern single-page applications cannot run directly from <code>file://</code> protocol. The Griha Saathi development server is currently offline on <code>localhost:3000</code>.
                 </p>
-                <div style="background: #19201C; color: #DCFCE7; font-family: 'Comic Sans MS', 'Comic Sans', cursive, sans-serif; padding: 0.95rem 1.15rem; border-radius: 10px; text-align: left; font-size: 0.88rem; margin-bottom: 1.25rem; line-height: 1.6;">
-                  <div style="color: #91A098; font-size: 0.8rem;"># In your project terminal, run:</div>
-                  <div style="font-weight: bold; color: #52B788;">npm.cmd run dev</div>
-                  <div style="color: #91A098; font-size: 0.78rem; margin-top: 4px;">(or double-click <strong>start.cmd</strong> in the project folder)</div>
+
+                <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.25rem;">
+                  <a href="http://localhost:3000/" class="gs-btn-primary" id="gs-direct-link">
+                    👉 Open Application on http://localhost:3000
+                  </a>
+                  <button type="button" class="gs-btn-secondary" id="gs-retry-btn">
+                    🔄 Retry Connection Now
+                  </button>
                 </div>
-                <div id="reconnect-status" style="font-size: 0.84rem; color: #B45309; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
-                  <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #F59E0B; animation: pulse 1.5s infinite;"></span>
-                  Waiting for server on http://localhost:3000 (checking automatically)...
+
+                <div style="background: #19201C; color: #DCFCE7; font-family: Consolas, 'Courier New', monospace; padding: 1rem 1.15rem; border-radius: 12px; text-align: left; font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.6;">
+                  <div style="color: #91A098; font-size: 0.78rem; margin-bottom: 4px;"># Verified startup command (in project root):</div>
+                  <div style="font-weight: bold; color: #52B788;">npm.cmd run dev</div>
+                  <div style="color: #91A098; font-size: 0.78rem; margin-top: 6px;">
+                    Or double-click <strong style="color: #FFFFFF;">start.cmd</strong> in the project folder to start and auto-launch the browser.
+                  </div>
+                </div>
+
+                <div id="gs-reconnect-status" style="font-size: 0.84rem; color: #B45309; font-weight: 600; min-height: 1.5rem; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                  <span class="gs-pulse-dot" style="background: #F59E0B;"></span> Waiting for server on http://localhost:3000...
+                </div>
+
+                <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid #E1E6E2; text-align: left; font-size: 0.78rem; color: #64748B; line-height: 1.5;">
+                  <strong>Why does this happen?</strong> Local development servers stop when Antigravity or the terminal is closed. To resume development, launch <code>start.cmd</code> or run <code>npm.cmd run dev</code>.
                 </div>
               </div>
             </div>
           `;
-          // Retry checking every 2 seconds
-          setTimeout(checkAndConnect, 2000);
+
+          var retryBtn = document.getElementById('gs-retry-btn');
+          if (retryBtn) {
+            retryBtn.addEventListener('click', function () {
+              if (pollTimer) clearTimeout(pollTimer);
+              checkAndConnect(true);
+            });
+          }
         }
 
         if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', checkAndConnect);
+          document.addEventListener('DOMContentLoaded', function () { checkAndConnect(false); });
         } else {
-          checkAndConnect();
+          checkAndConnect(false);
         }
       }
     })();

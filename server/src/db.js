@@ -191,7 +191,7 @@ export class InMemoryDatabase {
         if (isNaN(confirmedTime))
             return false;
         const elapsedDays = (Date.now() - confirmedTime) / (1000 * 60 * 60 * 24);
-        return elapsedDays <= FRESHNESS_POLICY_DAYS;
+        return elapsedDays >= 0 && elapsedDays <= FRESHNESS_POLICY_DAYS;
     }
     toPublicProperty(property) {
         const isConfirmed = this.isFreshAvailability(property.availabilityConfirmedAt);

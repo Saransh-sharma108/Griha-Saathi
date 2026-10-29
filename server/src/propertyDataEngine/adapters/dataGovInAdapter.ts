@@ -28,26 +28,19 @@ export class DataGovInAdapter implements IPropertyDataProviderAdapter {
   }
 
   isConfigured(): boolean {
-    return Boolean(
-      this.apiKey && 
-      this.apiKey.trim().length > 0 && 
-      this.apiKey !== 'YOUR_DATA_GOV_IN_API_KEY'
-    );
+    return false;
   }
 
   getStatus(): ProviderHealthStatus {
-    const configured = this.isConfigured();
     return {
       id: this.id,
       name: this.name,
       category: this.category,
       targetRegions: this.targetRegions,
-      configured,
-      status: configured ? 'connected' : 'awaiting_credentials',
-      statusMessage: configured
-        ? 'Connected & authenticated with NIC Open Government Data (OGD) API gateway.'
-        : 'Unconfigured. Awaiting official NIC OGD API Key in DATA_GOV_IN_API_KEY. Government housing feeds remain dormant until keys are loaded.',
-      requiredCredentials: ['DATA_GOV_IN_API_KEY'],
+      configured: false,
+      status: 'unsupported',
+      statusMessage: 'Not connected. No authorized data.gov.in rental-listing resource or listing response mapper is configured; an API key alone would not provide rental search.',
+      requiredCredentials: [],
       documentationRef: 'https://data.gov.in/developer-apis',
       lastCheckedAt: new Date().toISOString(),
     };
@@ -62,7 +55,7 @@ export class DataGovInAdapter implements IPropertyDataProviderAdapter {
         success: false,
         properties: [],
         totalMatches: 0,
-        statusMessage: 'Awaiting DATA_GOV_IN_API_KEY. Feed inactive until valid credentials are provided.',
+        statusMessage: 'No authorized rental-listing resource or response mapper is configured. No external request was made.',
         isFallback: false,
       };
     }

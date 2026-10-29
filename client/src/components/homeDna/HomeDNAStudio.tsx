@@ -173,8 +173,8 @@ export const HomeDNAStudio: React.FC<HomeDNAStudioProps> = ({
             ===================================================================== */}
         <div className="gs-dna-studio-hero" style={{ marginBottom: '2.25rem', textAlign: 'center' }}>
           <div className="gs-dna-badge-pill" style={{ marginBottom: '0.85rem' }}>
-            <Sparkles size={14} color="#52B788" />
-            <span>HOME DNA STUDIO</span>
+            <Sparkles size={14} color="#45D6A0" />
+            <span>HOME DNA STUDIO &bull; YOUR LIFE. YOUR VIBE. YOUR KIND OF HOME.</span>
           </div>
 
           <h1 
@@ -189,7 +189,7 @@ export const HomeDNAStudio: React.FC<HomeDNAStudioProps> = ({
             className="gs-dna-lead-copy"
             style={{ fontSize: '1.05rem', color: 'var(--gs-text-secondary)', maxWidth: '680px', margin: '0 auto 1.25rem auto', lineHeight: 1.55 }}
           >
-            Set your priorities. Understand the trade-offs. Explore homes using the information that is actually available.
+            Your life. Your vibe. Your kind of home. Set your priorities, understand the trade-offs, and explore homes using genuine property records.
           </p>
 
           {/* Clarity Guarantee Callout */}

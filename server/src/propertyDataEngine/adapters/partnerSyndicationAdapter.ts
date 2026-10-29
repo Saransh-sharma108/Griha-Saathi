@@ -26,26 +26,19 @@ export class PartnerSyndicationAdapter implements IPropertyDataProviderAdapter {
   }
 
   isConfigured(): boolean {
-    return Boolean(
-      this.endpoint && 
-      this.apiKey && 
-      this.apiKey !== 'YOUR_PARTNER_API_KEY'
-    );
+    return false;
   }
 
   getStatus(): ProviderHealthStatus {
-    const configured = this.isConfigured();
     return {
       id: this.id,
       name: this.name,
       category: this.category,
       targetRegions: this.targetRegions,
-      configured,
-      status: configured ? 'connected' : 'awaiting_credentials',
-      statusMessage: configured
-        ? 'Connected to authorized B2B syndication feed.'
-        : 'Awaiting authorized partner credentials in PARTNER_SYNDICATION_ENDPOINT and PARTNER_SYNDICATION_API_KEY. Feed remains inactive until verified partner credentials are loaded.',
-      requiredCredentials: ['PARTNER_SYNDICATION_ENDPOINT', 'PARTNER_SYNDICATION_API_KEY'],
+      configured: false,
+      status: 'unsupported',
+      statusMessage: 'Not connected. No authorized partner agreement or listing response mapper is configured; credentials alone would not enable rental search.',
+      requiredCredentials: [],
       documentationRef: '/docs/data_providers_and_integrations.md#b2b-syndication',
       lastCheckedAt: new Date().toISOString(),
     };

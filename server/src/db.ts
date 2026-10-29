@@ -310,7 +310,7 @@ export class InMemoryDatabase {
     const confirmedTime = Date.parse(availabilityConfirmedAt);
     if (isNaN(confirmedTime)) return false;
     const elapsedDays = (Date.now() - confirmedTime) / (1000 * 60 * 60 * 24);
-    return elapsedDays <= FRESHNESS_POLICY_DAYS;
+    return elapsedDays >= 0 && elapsedDays <= FRESHNESS_POLICY_DAYS;
   }
 
   public toPublicProperty(property: Property): Property {

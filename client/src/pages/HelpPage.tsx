@@ -193,7 +193,7 @@ export const HelpPage: React.FC<HelpPageProps> = ({ language }) => {
         'Warning 2: Claiming to be an Army Officer, CISF personnel, or transferred official who cannot meet in person.',
         'Warning 3: Reluctance to share Khewat/Khasra number or Sub-Registrar registration number.',
         'Warning 4: Price or rent quoted is absurdly lower (more than 40% below) prevailing circle/market rates.',
-        'Griha Saathi Safeguard: All listings displaying "Title Audited" have undergone document cross-referencing against official revenue records.'
+        'Review any verification details shown on a listing and check which documents or checks are recorded. A platform badge is not a substitute for independent title, identity, or in-person verification.'
       ],
       statutoryReference: 'Griha Saathi Consumer Protection & Security Protocol'
     },

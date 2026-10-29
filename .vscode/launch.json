@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Griha Saathi (Edge)",
+      "type": "msedge",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/client/src",
+      "preLaunchTask": "Start Griha Saathi Development Server"
+    },
+    {
+      "name": "Launch Griha Saathi (Chrome)",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:3000",
+      "webRoot": "${workspaceFolder}/client/src",
+      "preLaunchTask": "Start Griha Saathi Development Server"
+    }
+  ]
+}

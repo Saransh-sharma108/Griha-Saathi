@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   Filter, 
@@ -48,10 +48,12 @@ import {
   FurnishingStatus,
   RegionalCoverageMatrix,
   RegionalStatusReport,
-  PropertyProvenance
+  PropertyProvenance,
+  DemoPropertyType
 } from '@shared/types';
 import { translations } from '@shared/i18n';
 import { NavSection } from '../components/Header';
+import { DEMO_LISTING_NOTICE, DEMO_PROPERTIES, DEMO_PROPERTY_TYPES, searchDemoProperties } from '../data/demoProperties';
 
 interface FindPropertyPageProps {
   initialFilters?: { 
@@ -71,12 +73,21 @@ interface FindPropertyPageProps {
 const COMMON_AMENITIES = [
   'Power Backup',
   'Gated Security',
+  'Security',
   'Lift',
   'Dedicated Parking',
+  'Parking',
   'Municipal Water Supply',
   'Piped Gas',
   'Air Conditioning',
   'Balcony',
+  'Wi-Fi',
+  'Heating',
+  'Kitchen',
+  'Attached Bathroom',
+  'Laundry',
+  'Pet Friendly',
+  'Shared Accommodation',
 ];
 
 const BUDGET_PRESETS = [
@@ -93,7 +104,7 @@ export interface SearchDiagnostics {
   totalInRegistry: number;
   totalMatchingQuery: number;
   hasActiveFilters: boolean;
-  stages: { name: string; status: string; recordsCount?: number; approvedRecords?: number; survivingRecords?: number; syntheticDetected?: number }[];
+  stages: { name: string; status: string; recordsCount?: number; survivingRecords?: number; eligibleRecords?: number; excludedRecords?: number }[];
   providersChecked: {
     id: string;
     name: string;
@@ -119,10 +130,17 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
   const [cityFilter, setCityFilter] = useState(initialFilters?.city || '');
   const [localityFilter, setLocalityFilter] = useState(initialFilters?.locality || '');
   const [typeFilter, setTypeFilter] = useState(initialFilters?.propertyType || 'all');
+  const [searchMode, setSearchMode] = useState<'demo' | 'first_party'>('demo');
+  const [searchText, setSearchText] = useState('');
+  const [demoPropertyTypeFilter, setDemoPropertyTypeFilter] = useState<DemoPropertyType | 'all'>('all');
+  const [minBedroomsFilter, setMinBedroomsFilter] = useState('');
+  const [maxBedroomsFilter, setMaxBedroomsFilter] = useState('');
+  const [petFriendlyOnly, setPetFriendlyOnly] = useState(false);
   const [minRentFilter, setMinRentFilter] = useState('');
   const [maxRentFilter, setMaxRentFilter] = useState(initialFilters?.maxRent || '');
   const [minAreaFilter, setMinAreaFilter] = useState('');
   const [maxAreaFilter, setMaxAreaFilter] = useState('');
+  const [availableFromFilter, setAvailableFromFilter] = useState('');
   const [bedroomsFilter, setBedroomsFilter] = useState('all');
   const [bathroomsFilter, setBathroomsFilter] = useState('all');
   const [furnishingFilter, setFurnishingFilter] = useState('all');
@@ -133,7 +151,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
   const [onlyVerified, setOnlyVerified] = useState(true);
 
   // Sorting & Pagination State
-  const [sortBy, setSortBy] = useState<PropertySortOption>('verified_first');
+  const [sortBy, setSortBy] = useState<PropertySortOption>('rent_asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
@@ -157,6 +175,10 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
   const [queryError, setQueryError] = useState<string | null>(null);
   const [rentValidationError, setRentValidationError] = useState<string | null>(null);
   const [searchDiagnostics, setSearchDiagnostics] = useState<SearchDiagnostics | null>(null);
+  const [retrievedAt, setRetrievedAt] = useState<string | null>(null);
+  const [locationSuggestions, setLocationSuggestions] = useState<{ cities: string[]; localities: string[] }>({ cities: [], localities: [] });
+  const searchControllerRef = useRef<AbortController | null>(null);
+  const searchRequestIdRef = useRef(0);
 
   // Connection & Report States
   const [connectingPropertyId, setConnectingPropertyId] = useState<string | null>(null);
@@ -167,6 +189,17 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
   const [reportFeedback, setReportFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const t = translations[language].find;
+  const demoCities = useMemo(
+    () => Array.from(new Set(DEMO_PROPERTIES.filter((property) => stateFilter === 'all' || property.state === stateFilter).map((property) => property.city))).sort(),
+    [stateFilter]
+  );
+  const demoLocalities = useMemo(
+    () => Array.from(new Set(DEMO_PROPERTIES.filter((property) =>
+      (stateFilter === 'all' || property.state === stateFilter) &&
+      (!cityFilter || property.city === cityFilter)
+    ).map((property) => property.locality))).sort(),
+    [stateFilter, cityFilter]
+  );
 
   // Sync external filters if initialFilters updates (e.g. from Home search or Saathi AI)
   useEffect(() => {
@@ -190,8 +223,16 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
         return;
       }
     }
+    if (minAreaFilter && maxAreaFilter && Number(minAreaFilter) > Number(maxAreaFilter)) {
+      setRentValidationError('Minimum area cannot exceed maximum area.');
+      return;
+    }
+    if (minBedroomsFilter && maxBedroomsFilter && Number(minBedroomsFilter) > Number(maxBedroomsFilter)) {
+      setRentValidationError('Minimum bedrooms cannot exceed maximum bedrooms.');
+      return;
+    }
     setRentValidationError(null);
-  }, [minRentFilter, maxRentFilter]);
+  }, [minRentFilter, maxRentFilter, minAreaFilter, maxAreaFilter, minBedroomsFilter, maxBedroomsFilter]);
 
   // Close mobile filter drawer automatically if resized to desktop
   useEffect(() => {
@@ -243,10 +284,47 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
   // Main Discovery Query
   const fetchProperties = async () => {
     if (rentValidationError) return;
-    setLoading(true);
+    searchControllerRef.current?.abort();
+    const controller = new AbortController();
+    searchControllerRef.current = controller;
+    const requestId = ++searchRequestIdRef.current;
     setQueryError(null);
 
     try {
+      if (searchMode === 'demo') {
+        const matchingListings = searchDemoProperties({
+          state: stateFilter,
+          city: cityFilter,
+          locality: localityFilter,
+          propertyType: typeFilter,
+          demoPropertyType: demoPropertyTypeFilter,
+          searchText,
+          minRent: minRentFilter ? Number(minRentFilter) : undefined,
+          maxRent: maxRentFilter ? Number(maxRentFilter) : undefined,
+          minBedrooms: minBedroomsFilter ? Number(minBedroomsFilter) : bedroomsFilter !== 'all' ? Number(bedroomsFilter) : undefined,
+          maxBedrooms: maxBedroomsFilter ? Number(maxBedroomsFilter) : undefined,
+          minBathrooms: bathroomsFilter !== 'all' ? Number(bathroomsFilter) : undefined,
+          minArea: minAreaFilter ? Number(minAreaFilter) : undefined,
+          maxArea: maxAreaFilter ? Number(maxAreaFilter) : undefined,
+          furnishing: furnishingFilter,
+          preference: preferenceFilter,
+          amenities: selectedAmenities,
+          petFriendlyOnly,
+          availableFrom: availableFromFilter,
+          sortBy,
+        });
+        const pageSize = 12;
+        const pages = Math.ceil(matchingListings.length / pageSize);
+        setProperties(matchingListings.slice((currentPage - 1) * pageSize, currentPage * pageSize));
+        setTotalCount(matchingListings.length);
+        setTotalPages(pages);
+        setRetrievedAt(null);
+        setSearchDiagnostics(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
       const params = new URLSearchParams();
       if (stateFilter !== 'all') params.append('state', stateFilter);
       if (cityFilter.trim()) params.append('city', cityFilter.trim());
@@ -254,6 +332,9 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
       if (typeFilter !== 'all') params.append('propertyType', typeFilter);
       if (minRentFilter) params.append('minRent', minRentFilter);
       if (maxRentFilter) params.append('maxRent', maxRentFilter);
+      if (minAreaFilter) params.append('minArea', minAreaFilter);
+      if (maxAreaFilter) params.append('maxArea', maxAreaFilter);
+      if (availableFromFilter) params.append('availableFrom', availableFromFilter);
       if (bedroomsFilter !== 'all') params.append('bedrooms', bedroomsFilter);
       if (bathroomsFilter !== 'all') params.append('bathrooms', bathroomsFilter);
       if (furnishingFilter !== 'all') params.append('furnishing', furnishingFilter);
@@ -269,25 +350,16 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
       const headers: Record<string, string> = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      const res = await fetch(`/api/properties?${params.toString()}`, { headers });
+      const res = await fetch(`/api/properties?${params.toString()}`, { headers, signal: controller.signal });
       const data = await res.json();
+      if (requestId !== searchRequestIdRef.current) return;
 
       if (res.ok && data.success && Array.isArray(data.properties)) {
-        let list = data.properties;
-
-        // Apply client-side carpet area filter if supplied
-        if (minAreaFilter) {
-          const minA = Number(minAreaFilter);
-          if (!isNaN(minA)) list = list.filter((p: Property) => (p.areaSqFt || 0) >= minA);
-        }
-        if (maxAreaFilter) {
-          const maxA = Number(maxAreaFilter);
-          if (!isNaN(maxA)) list = list.filter((p: Property) => (p.areaSqFt || 0) <= maxA);
-        }
-
+        const list: Property[] = data.properties;
         setProperties(list);
         setTotalCount(data.total !== undefined ? data.total : list.length);
         setTotalPages(data.totalPages || Math.ceil(list.length / 12) || 1);
+        setRetrievedAt(data.retrievedAt || null);
         if (data.regionalMatrix) {
           setRegionalMatrix(data.regionalMatrix);
         }
@@ -298,6 +370,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
         setProperties([]);
         setTotalCount(0);
         setTotalPages(1);
+        setRetrievedAt(data.retrievedAt || null);
         if (data.regionalMatrix) {
           setRegionalMatrix(data.regionalMatrix);
         }
@@ -305,19 +378,41 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
           setSearchDiagnostics(data.diagnostics);
         }
         if (!res.ok) {
-          setQueryError(data.error || 'Server returned an error querying authoritative property records.');
+          setQueryError(data.error || 'Server returned an error while searching first-party property listings.');
         }
       }
     } catch (err) {
+      if (controller.signal.aborted || requestId !== searchRequestIdRef.current) return;
       console.error('Failed to query properties:', err);
       setProperties([]);
       setTotalCount(0);
       setTotalPages(1);
-      setQueryError('Unable to connect to Griha Saathi authoritative search service. Please check your network connection.');
+      setQueryError('Unable to connect to Griha Saathi property search. Please check your network connection.');
     } finally {
-      setLoading(false);
+      if (requestId === searchRequestIdRef.current) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/properties/locations', { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Location endpoint returned HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (data.success) {
+          setLocationSuggestions({
+            cities: Array.isArray(data.cities) ? data.cities : [],
+            localities: Array.isArray(data.localities) ? data.localities : [],
+          });
+        }
+      })
+      .catch((err) => {
+        if (!controller.signal.aborted) console.error('Failed to load first-party location suggestions:', err);
+      });
+    return () => controller.abort();
+  }, []);
 
   // Fetch initial 5-region evidence status on mount
   useEffect(() => {
@@ -332,16 +427,32 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
   }, []);
 
   useEffect(() => {
-    fetchProperties();
+    if (rentValidationError) {
+      setLoading(false);
+      return;
+    }
+    const delay = searchMode === 'first_party' && (cityFilter.trim() || localityFilter.trim()) ? 300 : 0;
+    const timer = window.setTimeout(() => { void fetchProperties(); }, delay);
+    return () => {
+      window.clearTimeout(timer);
+      searchControllerRef.current?.abort();
+    };
   }, [
     stateFilter,
     cityFilter,
     localityFilter,
     typeFilter,
+    searchMode,
+    searchText,
+    demoPropertyTypeFilter,
+    minBedroomsFilter,
+    maxBedroomsFilter,
+    petFriendlyOnly,
     minRentFilter,
     maxRentFilter,
     minAreaFilter,
     maxAreaFilter,
+    availableFromFilter,
     bedroomsFilter,
     bathroomsFilter,
     furnishingFilter,
@@ -352,6 +463,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
     onlyVerified,
     sortBy,
     currentPage,
+    rentValidationError,
   ]);
 
   // Initiate Connection
@@ -479,10 +591,16 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
     setCityFilter('');
     setLocalityFilter('');
     setTypeFilter('all');
+    setSearchText('');
+    setDemoPropertyTypeFilter('all');
+    setMinBedroomsFilter('');
+    setMaxBedroomsFilter('');
+    setPetFriendlyOnly(false);
     setMinRentFilter('');
     setMaxRentFilter('');
     setMinAreaFilter('');
     setMaxAreaFilter('');
+    setAvailableFromFilter('');
     setBedroomsFilter('all');
     setBathroomsFilter('all');
     setFurnishingFilter('all');
@@ -491,7 +609,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
     setDataSourceFilter('all');
     setConfirmedAvailableOnly(false);
     setOnlyVerified(true);
-    setSortBy('verified_first');
+    setSortBy('rent_asc');
     setCurrentPage(1);
     setRentValidationError(null);
     setSearchDiagnostics(null);
@@ -523,6 +641,15 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
     if (typeFilter !== 'all') {
       chips.push({ id: 'type', label: `Type: ${typeFilter.replace('_', ' ').toUpperCase()}`, onRemove: () => { setTypeFilter('all'); setCurrentPage(1); } });
     }
+    if (searchText.trim()) {
+      chips.push({ id: 'search', label: `Search: ${searchText.trim()}`, onRemove: () => { setSearchText(''); setCurrentPage(1); } });
+    }
+    if (demoPropertyTypeFilter !== 'all') {
+      const typeLabel = DEMO_PROPERTY_TYPES.find((type) => type.id === demoPropertyTypeFilter)?.label ?? demoPropertyTypeFilter;
+      chips.push({ id: 'demoType', label: `Demo type: ${typeLabel}`, onRemove: () => { setDemoPropertyTypeFilter('all'); setCurrentPage(1); } });
+    }
+    if (minBedroomsFilter) chips.push({ id: 'minBedrooms', label: `Min ${minBedroomsFilter} bedrooms`, onRemove: () => { setMinBedroomsFilter(''); setCurrentPage(1); } });
+    if (maxBedroomsFilter) chips.push({ id: 'maxBedrooms', label: `Max ${maxBedroomsFilter} bedrooms`, onRemove: () => { setMaxBedroomsFilter(''); setCurrentPage(1); } });
     if (minRentFilter) {
       chips.push({ id: 'minRent', label: `Min ₹${Number(minRentFilter).toLocaleString('en-IN')}`, onRemove: () => { setMinRentFilter(''); setCurrentPage(1); } });
     }
@@ -534,6 +661,9 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
     }
     if (maxAreaFilter) {
       chips.push({ id: 'maxArea', label: `Max ${maxAreaFilter} sq.ft`, onRemove: () => { setMaxAreaFilter(''); setCurrentPage(1); } });
+    }
+    if (availableFromFilter) {
+      chips.push({ id: 'availableFrom', label: `Available by ${availableFromFilter}`, onRemove: () => { setAvailableFromFilter(''); setCurrentPage(1); } });
     }
     if (bedroomsFilter !== 'all') {
       chips.push({ id: 'bedrooms', label: `${bedroomsFilter} BHK`, onRemove: () => { setBedroomsFilter('all'); setCurrentPage(1); } });
@@ -549,6 +679,9 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
     }
     if (confirmedAvailableOnly) {
       chips.push({ id: 'confirmedOnly', label: 'Confirmed Available (≤60d)', onRemove: () => { setConfirmedAvailableOnly(false); setCurrentPage(1); } });
+    }
+    if (petFriendlyOnly) {
+      chips.push({ id: 'petFriendly', label: 'Pet-friendly (simulated)', onRemove: () => { setPetFriendlyOnly(false); setCurrentPage(1); } });
     }
     if (!onlyVerified) {
       chips.push({ id: 'allVerif', label: 'Including Unverified', onRemove: () => { setOnlyVerified(true); setCurrentPage(1); } });
@@ -570,6 +703,10 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
     cityFilter,
     localityFilter,
     typeFilter,
+    searchText,
+    demoPropertyTypeFilter,
+    minBedroomsFilter,
+    maxBedroomsFilter,
     minRentFilter,
     maxRentFilter,
     minAreaFilter,
@@ -582,6 +719,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
     onlyVerified,
     dataSourceFilter,
     selectedAmenities,
+    petFriendlyOnly,
   ]);
 
   return (
@@ -618,16 +756,29 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
               <span className="gs-badge gs-badge-forest" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                <ShieldCheck size={14} />
-                <span>Statutory Real-Data Feed &bull; Land Registry Cross-Checked</span>
+                <Info size={14} />
+                <span>{searchMode === 'demo' ? 'Synthetic demo catalog' : 'Approved first-party submissions'}</span>
               </span>
             </div>
             <h1 className="gs-page-header-title" style={{ fontSize: '2.4rem', fontWeight: 800, marginBottom: '0.4rem', letterSpacing: '-0.025em' }}>
-              {t.title}
+              {searchMode === 'demo' ? 'Explore Demo Property Search' : t.title}
             </h1>
             <p className="gs-page-header-subtitle" style={{ fontSize: '1rem', maxWidth: '750px', lineHeight: 1.6 }}>
-              {t.subtitle}
+              {searchMode === 'demo' ? 'Explore a fictional, offline property catalog to try Griha Saathi search filters.' : t.subtitle}
             </p>
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.9rem' }} aria-label="Property search source">
+              <button type="button" className={`gs-btn gs-btn-sm ${searchMode === 'demo' ? 'gs-btn-primary' : 'gs-btn-outline'}`} onClick={() => { setSearchMode('demo'); setSortBy('rent_asc'); setCurrentPage(1); }}>
+                Demo catalog ({DEMO_PROPERTIES.length})
+              </button>
+              <button type="button" className={`gs-btn gs-btn-sm ${searchMode === 'first_party' ? 'gs-btn-primary' : 'gs-btn-outline'}`} onClick={() => { setSearchMode('first_party'); setSortBy('verified_first'); setCurrentPage(1); }}>
+                Approved listings
+              </button>
+            </div>
+            {searchMode === 'demo' && (
+              <div role="note" style={{ marginTop: '0.85rem', padding: '0.8rem 1rem', border: '1px solid #D97706', borderRadius: 'var(--gs-radius-md)', background: '#FFFBEB', color: '#78350F', maxWidth: '850px', lineHeight: 1.5 }}>
+                <strong>DEMO DATA — NOT REAL RENTALS.</strong> These {DEMO_PROPERTIES.length} fictional records demonstrate search only. Prices, features, locations, and simulated availability are illustrative; no property is being offered for rent.
+              </div>
+            )}
           </div>
 
           {/* Top Controls: Mode & Layout View Switchers */}
@@ -645,10 +796,10 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
               <button
                 onClick={() => setViewMode('map')}
                 className={`gs-segmented-btn ${viewMode === 'map' ? 'active' : ''}`}
-                aria-label="Switch to cadastral GIS map view"
+                aria-label="Switch to listing location preview"
               >
                 <Map size={16} />
-                <span>Cadastral Map</span>
+                <span>Location Preview</span>
               </button>
             </div>
 
@@ -697,31 +848,13 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
         <div className="gs-discovery-search-panel">
           {/* Main Primary Row */}
           <div className="gs-search-main-row">
-            {/* 1. Locality & Search Input */}
+            {/* Search text */}
             <div className="gs-form-field">
               <label className="gs-form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <MapPin size={14} color="var(--gs-forest-primary)" />
-                <span>{t.filterLocality}</span>
+                <Search size={14} color="var(--gs-forest-primary)" />
+                <span>Search listings</span>
               </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  placeholder="e.g. Sector 54, Cyber City, Saket, Model Town"
-                  value={localityFilter}
-                  onChange={(e) => { setLocalityFilter(e.target.value); setCurrentPage(1); }}
-                  style={{ paddingRight: localityFilter ? '2.5rem' : '1rem' }}
-                />
-                {localityFilter && (
-                  <button
-                    type="button"
-                    onClick={() => { setLocalityFilter(''); setCurrentPage(1); }}
-                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--gs-text-muted)', cursor: 'pointer' }}
-                    title="Clear locality input"
-                  >
-                    <X size={15} />
-                  </button>
-                )}
-              </div>
+              <input type="search" placeholder="Search title, city, locality or region" value={searchText} onChange={(event) => { setSearchText(event.target.value); setCurrentPage(1); }} onKeyDown={(event) => { if (event.key === 'Enter') void fetchProperties(); }} />
             </div>
 
             {/* 2. Region / Target State */}
@@ -729,7 +862,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
               <label className="gs-form-label">{t.filterState}</label>
               <select
                 value={stateFilter}
-                onChange={(e) => { setStateFilter(e.target.value); setCurrentPage(1); }}
+                onChange={(e) => { setStateFilter(e.target.value); setCityFilter(''); setLocalityFilter(''); setCurrentPage(1); }}
               >
                 <option value="all">All 5 Northern Regions</option>
                 <option value="Delhi">Delhi NCR (DDA)</option>
@@ -738,6 +871,36 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                 <option value="Himachal Pradesh">Himachal Pradesh</option>
                 <option value="Jammu & Kashmir">Jammu & Kashmir</option>
               </select>
+            </div>
+
+            <div className="gs-form-field">
+              <label className="gs-form-label">{t.filterCity}</label>
+              {searchMode === 'demo' ? (
+                <select value={cityFilter} onChange={(event) => { setCityFilter(event.target.value); setLocalityFilter(''); setCurrentPage(1); }}>
+                  <option value="">All cities</option>
+                  {demoCities.map((city) => <option key={city} value={city}>{city}</option>)}
+                </select>
+              ) : (
+                <input type="text" placeholder="City" value={cityFilter} onChange={(event) => { setCityFilter(event.target.value); setCurrentPage(1); }} list="first-party-cities" />
+              )}
+            </div>
+
+            <div className="gs-form-field">
+              <label className="gs-form-label">{t.filterLocality}</label>
+              {searchMode === 'demo' ? (
+                <select value={localityFilter} onChange={(event) => { setLocalityFilter(event.target.value); setCurrentPage(1); }}>
+                  <option value="">All localities</option>
+                  {demoLocalities.map((locality) => <option key={locality} value={locality}>{locality}</option>)}
+                </select>
+              ) : (
+                <input type="text" placeholder="Locality" value={localityFilter} onChange={(event) => { setLocalityFilter(event.target.value); setCurrentPage(1); }} list="first-party-localities" />
+              )}
+              {searchMode === 'first_party' && (
+                <>
+                  <datalist id="first-party-cities">{locationSuggestions.cities.map((city) => <option key={city} value={city} />)}</datalist>
+                  <datalist id="first-party-localities">{locationSuggestions.localities.map((locality) => <option key={locality} value={locality} />)}</datalist>
+                </>
+              )}
             </div>
 
             {/* 3. Property Category */}
@@ -825,17 +988,15 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
             <div className="gs-advanced-filter-tray">
               {/* Row 1: City, Area, Min Rent */}
               <div className="gs-advanced-filter-grid">
-                {/* Specific City Input */}
-                <div className="gs-form-field">
-                  <label className="gs-form-label">{t.filterCity}</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Gurugram, Chandigarh, Shimla"
-                    value={cityFilter}
-                    onChange={(e) => { setCityFilter(e.target.value); setCurrentPage(1); }}
-                  />
-                </div>
-
+                {searchMode === 'demo' && (
+                  <div className="gs-form-field">
+                    <label className="gs-form-label">Demo property type</label>
+                    <select value={demoPropertyTypeFilter} onChange={(event) => { setDemoPropertyTypeFilter(event.target.value as DemoPropertyType | 'all'); setCurrentPage(1); }}>
+                      <option value="all">All residential demo types</option>
+                      {DEMO_PROPERTY_TYPES.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+                    </select>
+                  </div>
+                )}
                 {/* Min Rent */}
                 <div className="gs-form-field">
                   <label className="gs-form-label">{t.filterRentMin}</label>
@@ -875,27 +1036,39 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                   />
                 </div>
 
-                {/* Listing Source */}
                 <div className="gs-form-field">
-                  <label className="gs-form-label">{t.filterDataSource}</label>
-                  <select
-                    value={dataSourceFilter}
-                    onChange={(e) => { setDataSourceFilter(e.target.value); setCurrentPage(1); }}
-                  >
-                    <option value="all">All Verified Channels</option>
-                    <option value="owner_submission">{t.filterSourceOwner}</option>
-                    <option value="authorized_registry">{t.filterSourceRegistry}</option>
-                    <option value="licensed_agent">{t.filterSourceAgent}</option>
-                  </select>
+                  <label className="gs-form-label">{searchMode === 'demo' ? 'Simulated available by' : 'Available by'}</label>
+                  <input
+                    type="date"
+                    value={availableFromFilter}
+                    onChange={(e) => { setAvailableFromFilter(e.target.value); setCurrentPage(1); }}
+                  />
                 </div>
+
+                {searchMode === 'first_party' && (
+                  <div className="gs-form-field">
+                    <label className="gs-form-label">{t.filterDataSource}</label>
+                    <select value={dataSourceFilter} onChange={(e) => { setDataSourceFilter(e.target.value); setCurrentPage(1); }}>
+                      <option value="all">All first-party submissions</option>
+                      <option value="owner_submission">{t.filterSourceOwner}</option>
+                      <option value="authorized_registry">{t.filterSourceRegistry}</option>
+                      <option value="licensed_agent">{t.filterSourceAgent}</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Row 2: Segmented Pill Selectors */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', marginTop: '1.25rem' }}>
                 {/* Bedrooms (BHK) */}
                 <div>
-                  <label className="gs-form-label" style={{ marginBottom: '0.45rem', display: 'block' }}>{t.filterBedrooms}</label>
-                  <div className="gs-pill-group">
+                  <label className="gs-form-label" style={{ marginBottom: '0.45rem', display: 'block' }}>{searchMode === 'demo' ? 'Bedrooms range' : t.filterBedrooms}</label>
+                  {searchMode === 'demo' ? (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <input aria-label="Minimum bedrooms" type="number" min="0" max="10" placeholder="Min" value={minBedroomsFilter} onChange={(event) => { setMinBedroomsFilter(event.target.value); setCurrentPage(1); }} />
+                      <input aria-label="Maximum bedrooms" type="number" min="0" max="10" placeholder="Max" value={maxBedroomsFilter} onChange={(event) => { setMaxBedroomsFilter(event.target.value); setCurrentPage(1); }} />
+                    </div>
+                  ) : <div className="gs-pill-group">
                     {[
                       { id: 'all', label: 'Any BHK' },
                       { id: '1', label: '1 BHK' },
@@ -912,7 +1085,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                         {opt.label}
                       </button>
                     ))}
-                  </div>
+                  </div>}
                 </div>
 
                 {/* Bathrooms */}
@@ -984,6 +1157,12 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
               </div>
 
               {/* Row 3: Key Amenities Multi-Select */}
+              {searchMode === 'demo' && (
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={petFriendlyOnly} onChange={(event) => { setPetFriendlyOnly(event.target.checked); setCurrentPage(1); }} />
+                  <span>Pet-friendly only (simulated)</span>
+                </label>
+              )}
               <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--gs-border-subtle)' }}>
                 <label className="gs-form-label" style={{ marginBottom: '0.5rem', display: 'block' }}>
                   {t.filterAmenities}
@@ -1036,6 +1215,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
           >
             {/* Integrity Toggles */}
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              {searchMode === 'first_party' && <>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', fontWeight: 600, color: 'var(--gs-forest-deep)', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
@@ -1057,6 +1237,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                 <Clock size={16} color="#059669" />
                 <span>{t.filterConfirmedOnly}</span>
               </label>
+              </>}
             </div>
 
             {/* Sorting Dropdown */}
@@ -1069,11 +1250,19 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                 onChange={(e) => { setSortBy(e.target.value as PropertySortOption); setCurrentPage(1); }}
                 style={{ width: 'auto', padding: '0.4rem 0.85rem', fontSize: '0.85rem' }}
               >
-                <option value="verified_first">{t.sortVerifiedFirst}</option>
+                {searchMode === 'first_party' && <option value="verified_first">{t.sortVerifiedFirst}</option>}
                 <option value="rent_asc">{t.sortRentAsc}</option>
                 <option value="rent_desc">{t.sortRentDesc}</option>
-                <option value="newest">{t.sortNewest}</option>
+                {searchMode === 'first_party' && <option value="newest">{t.sortNewest}</option>}
+                {searchMode === 'demo' && <>
+                  <option value="area_asc">Area: small to large</option>
+                  <option value="area_desc">Area: large to small</option>
+                  <option value="relevance">Relevance to selected filters</option>
+                </>}
               </select>
+              <button type="button" onClick={() => { void fetchProperties(); }} className="gs-btn gs-btn-sm gs-btn-primary">
+                <Search size={13} /> Search
+              </button>
             </div>
           </div>
 
@@ -1105,7 +1294,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
         </div>
 
         {/* Five-Region Integration & Operational Evidence Bar (Directives 3 & 9) */}
-        {regionalMatrix && (
+        {searchMode === 'first_party' && regionalMatrix && (
           <div className="gs-regional-coverage-banner">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div className="gs-coverage-shield-icon">
@@ -1124,7 +1313,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                     </span>
                   ) : (
                     <span>
-                      5 Northern Regions Audited • {regionalMatrix.totalGenuineListings} Active Verified Listings • Zero Synthetic Data Enforced
+                      5-region search scope • {regionalMatrix.totalEligibleListings} eligible first-party listings
                     </span>
                   )}
                 </div>
@@ -1153,9 +1342,25 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
             )}
           </div>
 
-          <div className="gs-results-freshness-indicator">
-            <span className="gs-freshness-dot" />
-            <span>60-day availability freshness policy &bull; Real database records</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div className="gs-results-freshness-indicator">
+              <span className="gs-freshness-dot" />
+              <span>
+                {searchMode === 'demo'
+                  ? 'Offline synthetic demo data · availability is simulated'
+                  : `First-party listings${retrievedAt ? ` • Retrieved ${new Date(retrievedAt).toLocaleString()}` : ''}`}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => { void fetchProperties(); }}
+              disabled={loading}
+              className="gs-btn gs-btn-sm gs-btn-outline"
+              aria-label="Refresh property search results"
+            >
+              <RotateCcw size={14} />
+              <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
+            </button>
           </div>
         </div>
 
@@ -1180,10 +1385,10 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
               </div>
 
               <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--gs-forest-deep)', marginBottom: '0.5rem' }}>
-                {t.cadastralMapTitle}
+                Listing Location Preview
               </h2>
               <p style={{ fontSize: '0.95rem', color: 'var(--gs-text-secondary)', marginBottom: '1.75rem', lineHeight: 1.6 }}>
-                {t.cadastralMapDesc}
+                Locations and coordinates are provided with listings. Independently verify addresses; this is not an official cadastral map.
               </p>
 
               {/* Interactive Regional GIS Canvas */}
@@ -1220,7 +1425,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                   <circle cx="210" cy="110" r="8" fill="#1B4332" />
                 </svg>
 
-                {/* Live Pins for genuine properties with verified coordinates */}
+                {/* First-party listing location indicators */}
                 {properties.some((p) => p.coordinates) ? (
                   <div style={{ zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem' }}>
                     <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -1361,15 +1566,15 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
               <AlertCircle size={28} />
             </div>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#991B1B', marginBottom: '0.5rem' }}>
-              Registry Connection Interrupted
+              Property Search Connection Interrupted
             </h3>
             <p style={{ fontSize: '0.92rem', color: '#7F1D1D', marginBottom: '1.5rem', lineHeight: 1.5 }}>
               {queryError}
             </p>
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
-              <button onClick={fetchProperties} className="gs-btn gs-btn-primary">
+              <button onClick={() => { void fetchProperties(); }} className="gs-btn gs-btn-primary">
                 <RotateCcw size={16} />
-                <span>Retry Authoritative Query</span>
+                <span>Retry Property Search</span>
               </button>
               <button onClick={resetAllFilters} className="gs-btn gs-btn-outline">
                 <span>Reset Parameters</span>
@@ -1385,7 +1590,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                 {properties.map((property) => {
                   const isSaved = savedPropertyIds.has(property.id);
                   const isSaveLoading = saveActionLoadingId === property.id;
-                  const isFresh = property.isAvailabilityConfirmed !== false;
+                  const isFresh = !property.isDemo && property.isAvailabilityConfirmed !== false;
 
                   return (
                     <div
@@ -1420,28 +1625,32 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                           >
                             <Building size={34} strokeWidth={1.5} />
                             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--gs-text-primary)' }}>
-                              Authoritative Title Record
+                              Property image not provided
                             </span>
                             <span style={{ fontSize: '0.72rem', color: 'var(--gs-text-secondary)' }}>
-                              Field-verified address &bull; Real database record
+                              {property.isDemo ? 'Illustrative demo image unavailable' : 'Owner-submitted listing details'}
                             </span>
                           </div>
                         )}
 
                         {/* Floating Top Left Badges */}
                         <div className="gs-property-card-badge-top" style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                          {property.verificationStatus === 'authoritative_verified' ? (
+                          {property.isDemo ? (
+                            <span className="gs-badge gs-badge-warning"><Info size={12} /><span>DEMO · NOT REAL</span></span>
+                          ) : property.verificationStatus === 'authoritative_verified' ? (
                             <span className="gs-badge gs-badge-verified">
                               <ShieldCheck size={12} />
-                              <span>Title Audited</span>
+                              <span>Verification evidence recorded</span>
                             </span>
                           ) : (
                             <span className="gs-badge gs-badge-forest">
                               <ShieldCheck size={12} />
-                              <span>Verified</span>
+                              <span>Owner submission approved</span>
                             </span>
                           )}
-                          {isFresh ? (
+                          {property.isDemo ? (
+                            <span className="gs-badge gs-badge-warning"><Clock size={11} /><span>Simulated status: {property.demoAvailabilityStatus?.replace('simulated_', '')}</span></span>
+                          ) : isFresh ? (
                             <span className="gs-badge gs-badge-emerald" title={t.freshnessConfirmedDesc}>
                               <CheckCircle size={11} />
                               <span>Fresh (≤60d)</span>
@@ -1449,13 +1658,13 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                           ) : (
                             <span className="gs-badge gs-badge-warning" title={t.freshnessStaleDesc}>
                               <Clock size={11} />
-                              <span>Stale</span>
+                              <span>Availability not confirmed</span>
                             </span>
                           )}
                         </div>
 
                         {/* Floating Top Right Actions */}
-                        <div className="gs-property-card-actions-top">
+                        {!property.isDemo && <div className="gs-property-card-actions-top">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1479,7 +1688,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                           >
                             <Heart size={15} fill={isSaved ? '#DC2626' : 'none'} />
                           </button>
-                        </div>
+                        </div>}
                       </div>
 
                       {/* Card Body */}
@@ -1490,7 +1699,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                         </div>
 
                         <div style={{ fontSize: '0.78rem', color: 'var(--gs-text-muted)', marginBottom: '0.35rem' }}>
-                          Deposit: ₹{property.securityDeposit.toLocaleString('en-IN')} (Model Act 2-mo cap)
+                          {property.isDemo ? 'Illustrative demo amount · not a real offer' : `Deposit: ₹${property.securityDeposit.toLocaleString('en-IN')} (Model Act 2-mo cap)`}
                         </div>
 
                         <h3 className="gs-property-card-title" title={property.title}>
@@ -1506,7 +1715,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
 
                         <div className="gs-property-card-specs">
                           <span className="gs-spec-pill">
-                            🛏️ {property.bedrooms !== undefined ? `${property.bedrooms} BHK` : 'Studio'}
+                            🏠 {property.propertyTypeLabel || (property.bedrooms !== undefined ? `${property.bedrooms} BHK` : 'Studio')}
                           </span>
                           {property.bathrooms !== undefined && (
                             <span className="gs-spec-pill">
@@ -1524,15 +1733,19 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                         </div>
 
                         {/* Provenance & Source Attribution (Directive 5 & 9) */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.35rem 0.6rem', backgroundColor: 'var(--gs-surface-secondary)', borderRadius: 'var(--gs-radius-sm)', border: '1px solid var(--gs-border)', fontSize: '0.72rem', color: 'var(--gs-text-primary)', margin: '0.35rem 0' }}>
+                        {property.isDemo ? (
+                          <div role="note" style={{ padding: '0.4rem 0.6rem', backgroundColor: '#FFFBEB', color: '#78350F', borderRadius: 'var(--gs-radius-sm)', border: '1px solid #D97706', fontSize: '0.74rem', margin: '0.35rem 0' }}>
+                            DEMO LISTING — NOT A REAL PROPERTY · {property.demoOwnerLabel}
+                          </div>
+                        ) : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.35rem 0.6rem', backgroundColor: 'var(--gs-surface-secondary)', borderRadius: 'var(--gs-radius-sm)', border: '1px solid var(--gs-border)', fontSize: '0.72rem', color: 'var(--gs-text-primary)', margin: '0.35rem 0' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600 }}>
                             <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: property.provenance?.isFresh !== false ? '#10B981' : '#F59E0B' }} />
-                            <span>{property.provenance?.providerName || (property.dataSource === 'authorized_registry' ? 'State Registry' : 'Direct Verified')}</span>
+                            <span>{property.provenance?.providerName || 'Griha Saathi first-party registry'}</span>
                           </span>
                           <span style={{ color: 'var(--gs-text-muted)', fontSize: '0.68rem' }}>
                             ID: {property.id}
                           </span>
-                        </div>
+                        </div>}
 
                         {/* Card Footer Actions */}
                         <div className="gs-property-card-footer">
@@ -1542,9 +1755,9 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                             className="gs-btn gs-btn-outline gs-btn-sm"
                             style={{ flex: 1 }}
                           >
-                            <span>View Dossier</span>
+                            <span>{property.isDemo ? 'View demo details' : 'View Dossier'}</span>
                           </button>
-                          <button
+                          {!property.isDemo && <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1555,7 +1768,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                             style={{ flex: 1 }}
                           >
                             <span>{connectingPropertyId === property.id ? 'Connecting...' : 'Connect Landlord'}</span>
-                          </button>
+                          </button>}
                         </div>
                       </div>
                     </div>
@@ -1568,7 +1781,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                 {properties.map((property) => {
                   const isSaved = savedPropertyIds.has(property.id);
                   const isSaveLoading = saveActionLoadingId === property.id;
-                  const isFresh = property.isAvailabilityConfirmed !== false;
+                  const isFresh = !property.isDemo && property.isAvailabilityConfirmed !== false;
 
                   return (
                     <div
@@ -1602,21 +1815,25 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                           >
                             <Building size={36} strokeWidth={1.5} />
                             <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--gs-text-primary)' }}>
-                              Authoritative Title Record
+                              Property image not provided
                             </span>
                             <span style={{ fontSize: '0.74rem', color: 'var(--gs-text-secondary)' }}>
-                              Field-verified address &bull; Real database record
+                              {property.isDemo ? 'Illustrative demo image unavailable' : 'Owner-submitted listing details'}
                             </span>
                           </div>
                         )}
 
                         {/* Floating Top Left Badges */}
                         <div className="gs-property-card-badge-top" style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-                          <span className={property.verificationStatus === 'authoritative_verified' ? 'gs-badge gs-badge-verified' : 'gs-badge gs-badge-forest'}>
+                          {property.isDemo ? (
+                            <span className="gs-badge gs-badge-warning"><Info size={12} /><span>DEMO · NOT REAL</span></span>
+                          ) : <span className={property.verificationStatus === 'authoritative_verified' ? 'gs-badge gs-badge-verified' : 'gs-badge gs-badge-forest'}>
                             <ShieldCheck size={12} />
-                            <span>{property.verificationStatus === 'authoritative_verified' ? 'Title Audited' : 'Verified'}</span>
-                          </span>
-                          {isFresh ? (
+                            <span>{property.verificationStatus === 'authoritative_verified' ? 'Verification evidence recorded' : 'Owner submission approved'}</span>
+                          </span>}
+                          {property.isDemo ? (
+                            <span className="gs-badge gs-badge-warning"><Clock size={11} /><span>Simulated status: {property.demoAvailabilityStatus?.replace('simulated_', '')}</span></span>
+                          ) : isFresh ? (
                             <span className="gs-badge gs-badge-emerald">
                               <CheckCircle size={11} />
                               <span>Fresh (≤60d)</span>
@@ -1624,13 +1841,13 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                           ) : (
                             <span className="gs-badge gs-badge-warning">
                               <Clock size={11} />
-                              <span>Stale</span>
+                              <span>Availability not confirmed</span>
                             </span>
                           )}
                         </div>
 
                         {/* Floating Top Right Actions */}
-                        <div className="gs-property-card-actions-top">
+                        {!property.isDemo && <div className="gs-property-card-actions-top">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1654,7 +1871,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                           >
                             <Heart size={15} fill={isSaved ? '#DC2626' : 'none'} />
                           </button>
-                        </div>
+                        </div>}
                       </div>
 
                       {/* Content Column */}
@@ -1666,7 +1883,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                               <span className="gs-property-card-period">/month</span>
                             </div>
                             <div style={{ fontSize: '0.82rem', color: 'var(--gs-text-muted)', fontWeight: 600 }}>
-                              Deposit: ₹{property.securityDeposit.toLocaleString('en-IN')} (Model Act Cap)
+                              {property.isDemo ? 'Illustrative demo amount · not a real offer' : `Deposit: ₹${property.securityDeposit.toLocaleString('en-IN')} (Model Act Cap)`}
                             </div>
                           </div>
 
@@ -1683,7 +1900,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
 
                           <div className="gs-property-card-specs" style={{ margin: '0.75rem 0' }}>
                             <span className="gs-spec-pill">
-                              🛏️ {property.bedrooms !== undefined ? `${property.bedrooms} BHK` : 'Studio'}
+                              🏠 {property.propertyTypeLabel || (property.bedrooms !== undefined ? `${property.bedrooms} BHK` : 'Studio')}
                             </span>
                             {property.bathrooms !== undefined && (
                               <span className="gs-spec-pill">
@@ -1731,15 +1948,19 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                         </div>
 
                         {/* Provenance & Source Attribution (Directive 5 & 9) */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.75rem', backgroundColor: 'var(--gs-surface-secondary)', borderRadius: 'var(--gs-radius-sm)', border: '1px solid var(--gs-border)', fontSize: '0.74rem', color: 'var(--gs-text-primary)', margin: '0.5rem 0' }}>
+                        {property.isDemo ? (
+                          <div role="note" style={{ padding: '0.4rem 0.75rem', backgroundColor: '#FFFBEB', color: '#78350F', borderRadius: 'var(--gs-radius-sm)', border: '1px solid #D97706', fontSize: '0.76rem', margin: '0.5rem 0' }}>
+                            DEMO LISTING — NOT A REAL PROPERTY · {property.demoOwnerLabel}
+                          </div>
+                        ) : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.75rem', backgroundColor: 'var(--gs-surface-secondary)', borderRadius: 'var(--gs-radius-sm)', border: '1px solid var(--gs-border)', fontSize: '0.74rem', color: 'var(--gs-text-primary)', margin: '0.5rem 0' }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}>
                             <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: property.provenance?.isFresh !== false ? '#10B981' : '#F59E0B' }} />
-                            <span>Source: {property.provenance?.providerName || (property.dataSource === 'authorized_registry' ? 'State Registry' : 'Direct Verified')}</span>
+                            <span>Source: {property.provenance?.providerName || 'Griha Saathi first-party registry'}</span>
                           </span>
                           <span style={{ color: 'var(--gs-text-muted)', fontSize: '0.7rem' }}>
                             Traceable ID: {property.id}
                           </span>
-                        </div>
+                        </div>}
 
                         <div className="gs-property-card-footer" style={{ borderTop: '1px solid var(--gs-border-subtle)', paddingTop: '0.9rem' }}>
                           <button
@@ -1748,9 +1969,9 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                             className="gs-btn gs-btn-outline gs-btn-sm"
                           >
                             <FileCheck size={14} />
-                            <span>View Audit Dossier</span>
+                            <span>{property.isDemo ? 'View demo details' : 'View Audit Dossier'}</span>
                           </button>
-                          <button
+                          {!property.isDemo && <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1761,7 +1982,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                           >
                             <PhoneCall size={14} />
                             <span>{connectingPropertyId === property.id ? 'Connecting...' : 'Request Owner Connection'}</span>
-                          </button>
+                          </button>}
                         </div>
                       </div>
                     </div>
@@ -1813,24 +2034,31 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
             <div className="gs-empty-icon">
               <ShieldCheck size={32} />
             </div>
+            <div className="gs-empty-tagline" style={{ fontSize: '0.88rem', fontWeight: 700, color: '#45D6A0', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' }}>
+              Your next home might need a wider search.
+            </div>
             <h2 className="gs-empty-title">
-              {searchDiagnostics?.status === 'filters_too_restrictive'
-                ? 'No Properties Match Selected Filters'
+                {searchMode === 'demo'
+                  ? (activeFilterChips.length > 0 ? 'No Demo Listings Match These Filters' : 'No Demo Listings Available')
+                  : searchDiagnostics?.status === 'filters_too_restrictive'
+                  ? 'No Properties Match Selected Filters'
                 : searchDiagnostics?.status === 'awaiting_provider_credentials'
-                ? 'External Syndication Feed Awaiting Credentials'
+                ? 'External Rental Feed Not Connected'
                 : activeFilterChips.length > 0
                 ? 'No Properties Matching Selected Filters'
-                : 'Authoritative Registry Ingestion Active'}
+                : 'No Approved First-Party Listings'}
             </h2>
             <p className="gs-empty-desc">
-              {searchDiagnostics?.message ||
+              {searchMode === 'demo'
+                ? 'Try removing a filter or choosing a different region, city, locality, or budget. Demo results are fictional search examples only.'
+                : searchDiagnostics?.message ||
                 (activeFilterChips.length > 0
-                  ? 'No authentic listings currently meet your exact filter criteria across our audited state registries.'
-                  : 'All listings in Griha Saathi undergo strict state land registry cross-referencing (Jamabandi, PLRS, DORIS, Himbhoomi) and physical field certification before appearing in public discovery.')}
+                  ? 'No approved first-party listings match these filters.'
+                  : 'Search includes approved first-party owner and broker submissions. No external rental listing feeds are connected.')}
             </p>
 
             {/* Evidence-Based Diagnostic Pipeline Stages (Phase 6 & 8) */}
-            {searchDiagnostics?.stages && searchDiagnostics.stages.length > 0 && (
+            {searchMode === 'first_party' && searchDiagnostics?.stages && searchDiagnostics.stages.length > 0 && (
               <div
                 style={{
                   display: 'flex',
@@ -1848,7 +2076,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
               >
                 <div style={{ fontSize: '0.78rem', color: 'var(--gs-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <CheckCircle size={14} color="var(--gs-accent-bright)" />
-                  <span><strong>Registry DB:</strong> {searchDiagnostics.stages[0]?.recordsCount ?? searchDiagnostics.totalInRegistry} Verified Records</span>
+                  <span><strong>Registry:</strong> {searchDiagnostics.stages[0]?.recordsCount ?? 0} Stored Records</span>
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--gs-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <CheckCircle size={14} color="var(--gs-accent-bright)" />
@@ -1860,20 +2088,21 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--gs-text-secondary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <ShieldCheck size={14} color="var(--gs-accent-bright)" />
-                  <span><strong>Zero Synthetic:</strong> 100% Genuine</span>
+                  <span><strong>Listing evidence gate:</strong> Applied</span>
                 </div>
               </div>
             )}
 
-            <div className="gs-integrity-callout" style={{ marginBottom: '1.25rem' }}>
+            {searchMode === 'first_party' && <div className="gs-integrity-callout" style={{ marginBottom: '1.25rem' }}>
               <Info size={18} style={{ flexShrink: 0, marginTop: 2 }} />
               <div>
-                <strong>Strict Real-Data Policy (Directive 0):</strong> Griha Saathi never populates fake or synthetic marketplace listings to appear populated. Every listing must pass state land registry audits (Haryana Jamabandi, Punjab PLRS, Delhi DDA/Revenue, HP Himbhoomi, J&K Revenue) and certified physical inspection. An honest zero is infinitely more trustworthy than a fabricated property.
+                <strong>First-party data only:</strong> Listings come from the Griha Saathi registry after approval. External rental feeds are not connected. Verification badges require recorded land-registry, owner-identity, and physical-inspection evidence; availability is shown as confirmed only when an owner confirmation is current.
               </div>
             </div>
+            }
 
             {/* Five-Region Evidence Breakdown (Directive 3) */}
-            {regionalMatrix && (
+            {searchMode === 'first_party' && regionalMatrix && (
               <div className="gs-empty-matrix-section">
                 <div className="gs-empty-matrix-header">
                   <ShieldCheck size={16} color="var(--gs-forest-primary)" />
@@ -1943,8 +2172,51 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                 <X size={20} />
               </button>
 
+              {selectedPropertyForModal.isDemo ? (
+                <section aria-label="Demo property details">
+                  <div role="note" style={{ margin: '0 2rem 1.25rem 0', padding: '1rem', border: '2px solid #D97706', borderRadius: 'var(--gs-radius-md)', background: '#FFFBEB', color: '#78350F', lineHeight: 1.55 }}>
+                    <strong>DEMO LISTING — NOT A REAL PROPERTY.</strong>
+                    <div>{DEMO_LISTING_NOTICE}</div>
+                  </div>
+                  <h2 style={{ color: 'var(--gs-forest-deep)', marginBottom: '0.5rem' }}>{selectedPropertyForModal.propertyTypeLabel}</h2>
+                  <p style={{ color: 'var(--gs-text-secondary)', lineHeight: 1.6 }}>{selectedPropertyForModal.description}</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', margin: '1.25rem 0' }}>
+                    {[
+                      ['Demo rent', `₹${selectedPropertyForModal.rentPerMonth.toLocaleString('en-IN')} / month`],
+                      ['Illustrative deposit', `₹${selectedPropertyForModal.securityDeposit.toLocaleString('en-IN')}`],
+                      ['Approximate location', `${selectedPropertyForModal.locality}, ${selectedPropertyForModal.city}, ${selectedPropertyForModal.state}`],
+                      ['Area', selectedPropertyForModal.areaSqFt ? `${selectedPropertyForModal.areaSqFt} sq.ft (illustrative)` : 'Not specified'],
+                      ['Bedrooms', selectedPropertyForModal.bedrooms === undefined ? 'Not specified' : String(selectedPropertyForModal.bedrooms)],
+                      ['Bathrooms', selectedPropertyForModal.bathrooms === undefined ? 'Not specified' : String(selectedPropertyForModal.bathrooms)],
+                      ['Furnishing', selectedPropertyForModal.furnishing.replaceAll('_', ' ')],
+                      ['Availability', selectedPropertyForModal.demoAvailabilityStatus?.replace('simulated_', '') ?? 'simulated'],
+                      ['Illustrative submitter', selectedPropertyForModal.demoOwnerLabel ?? 'Demo Owner'],
+                    ].map(([label, value]) => (
+                      <div key={label} style={{ padding: '0.75rem', border: '1px solid var(--gs-border)', borderRadius: 'var(--gs-radius-md)', background: 'var(--gs-bg-canvas)' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--gs-text-muted)' }}>{label}</div>
+                        <div style={{ fontWeight: 700, color: 'var(--gs-forest-deep)' }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedPropertyForModal.amenities.length > 0 && (
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <h3 style={{ color: 'var(--gs-forest-deep)' }}>Illustrative features</h3>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                        {selectedPropertyForModal.amenities.map((amenity) => <span key={amenity} className="gs-filter-chip">{amenity}</span>)}
+                      </div>
+                    </div>
+                  )}
+                  <p style={{ fontSize: '0.88rem', color: 'var(--gs-text-muted)' }}>
+                    No contact, save, report, or availability-reconfirmation actions are available for fictional demo records.
+                  </p>
+                </section>
+              ) : (
+                <>
               {/* Modal Header */}
               <div style={{ marginBottom: '1.25rem', paddingRight: '2rem' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--gs-accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.45rem' }}>
+                  Know the details before you fall in love.
+                </div>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
                   <span className={`gs-badge ${selectedPropertyForModal.verificationStatus === 'authoritative_verified' ? 'gs-badge-verified' : 'gs-badge-warning'}`}>
                     <ShieldCheck size={14} />
@@ -1974,7 +2246,6 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                   </span>
                 </div>
               </div>
-
               {/* Rent & Financials Banner */}
               <div
                 style={{
@@ -2078,7 +2349,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.65rem', fontSize: '0.8rem' }}>
                   <div>
                     <span style={{ color: 'var(--gs-text-muted)' }}>Source Provider: </span>
-                    <strong style={{ color: 'var(--gs-forest-deep)' }}>{selectedPropertyForModal.provenance?.providerName || (selectedPropertyForModal.dataSource === 'authorized_registry' ? 'State RERA Registry' : 'Griha Saathi Authoritative Direct Registry')}</strong>
+                    <strong style={{ color: 'var(--gs-forest-deep)' }}>{selectedPropertyForModal.provenance?.providerName || 'Griha Saathi first-party listing registry'}</strong>
                   </div>
                   <div>
                     <span style={{ color: 'var(--gs-text-muted)' }}>Provider Record ID: </span>
@@ -2276,6 +2547,8 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                   </button>
                 </div>
               </div>
+                  </>
+                )}
             </div>
           </div>
         )}
@@ -2467,7 +2740,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                   <label className="gs-form-label">{t.filterState}</label>
                   <select
                     value={stateFilter}
-                    onChange={(e) => { setStateFilter(e.target.value); setCurrentPage(1); }}
+                    onChange={(e) => { setStateFilter(e.target.value); setCityFilter(''); setLocalityFilter(''); setCurrentPage(1); }}
                   >
                     <option value="all">All 5 Northern Regions</option>
                     <option value="Delhi">Delhi NCR (DDA)</option>
@@ -2481,22 +2754,22 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                 {/* 2. City & Locality */}
                 <div className="gs-form-field">
                   <label className="gs-form-label">{t.filterCity}</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Gurugram, Chandigarh"
-                    value={cityFilter}
-                    onChange={(e) => { setCityFilter(e.target.value); setCurrentPage(1); }}
-                  />
+                  {searchMode === 'demo' ? (
+                    <select value={cityFilter} onChange={(e) => { setCityFilter(e.target.value); setLocalityFilter(''); setCurrentPage(1); }}>
+                      <option value="">All cities</option>
+                      {demoCities.map((city) => <option key={city} value={city}>{city}</option>)}
+                    </select>
+                  ) : <input type="text" placeholder="City" value={cityFilter} onChange={(e) => { setCityFilter(e.target.value); setCurrentPage(1); }} />}
                 </div>
 
                 <div className="gs-form-field">
                   <label className="gs-form-label">{t.filterLocality}</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Sector 54, Saket"
-                    value={localityFilter}
-                    onChange={(e) => { setLocalityFilter(e.target.value); setCurrentPage(1); }}
-                  />
+                  {searchMode === 'demo' ? (
+                    <select value={localityFilter} onChange={(e) => { setLocalityFilter(e.target.value); setCurrentPage(1); }}>
+                      <option value="">All localities</option>
+                      {demoLocalities.map((locality) => <option key={locality} value={locality}>{locality}</option>)}
+                    </select>
+                  ) : <input type="text" placeholder="Locality" value={localityFilter} onChange={(e) => { setLocalityFilter(e.target.value); setCurrentPage(1); }} />}
                 </div>
 
                 {/* 3. Property Type */}
@@ -2517,6 +2790,15 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                     <option value="pg_coliving">PG / Co-living</option>
                   </select>
                 </div>
+                {searchMode === 'demo' && (
+                  <div className="gs-form-field">
+                    <label className="gs-form-label">Demo property type</label>
+                    <select value={demoPropertyTypeFilter} onChange={(e) => { setDemoPropertyTypeFilter(e.target.value as DemoPropertyType | 'all'); setCurrentPage(1); }}>
+                      <option value="all">All residential demo types</option>
+                      {DEMO_PROPERTY_TYPES.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}
+                    </select>
+                  </div>
+                )}
 
                 {/* 4. Budget Range */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
@@ -2569,10 +2851,20 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                     />
                   </div>
                 </div>
+                <div className="gs-form-field">
+                  <label className="gs-form-label">{searchMode === 'demo' ? 'Simulated available by' : 'Available by'}</label>
+                  <input type="date" value={availableFromFilter} onChange={(e) => { setAvailableFromFilter(e.target.value); setCurrentPage(1); }} />
+                </div>
 
                 {/* 6. Bedrooms */}
                 <div>
-                  <label className="gs-form-label" style={{ marginBottom: '0.45rem', display: 'block' }}>{t.filterBedrooms}</label>
+                  <label className="gs-form-label" style={{ marginBottom: '0.45rem', display: 'block' }}>{searchMode === 'demo' ? 'Bedrooms range' : t.filterBedrooms}</label>
+                  {searchMode === 'demo' ? (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <input aria-label="Minimum bedrooms" type="number" min="0" max="10" placeholder="Min" value={minBedroomsFilter} onChange={(e) => { setMinBedroomsFilter(e.target.value); setCurrentPage(1); }} />
+                      <input aria-label="Maximum bedrooms" type="number" min="0" max="10" placeholder="Max" value={maxBedroomsFilter} onChange={(e) => { setMaxBedroomsFilter(e.target.value); setCurrentPage(1); }} />
+                    </div>
+                  ) :
                   <div className="gs-pill-group">
                     {[
                       { id: 'all', label: 'Any' },
@@ -2590,7 +2882,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                         {opt.label}
                       </button>
                     ))}
-                  </div>
+                  </div>}
                 </div>
 
                 {/* 7. Furnishing */}
@@ -2615,6 +2907,24 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                   </div>
                 </div>
 
+                {searchMode === 'demo' && (
+                  <>
+                    <div className="gs-form-field">
+                      <label className="gs-form-label">Suitable for (simulated)</label>
+                      <select value={preferenceFilter} onChange={(e) => { setPreferenceFilter(e.target.value); setCurrentPage(1); }}>
+                        <option value="all">Any</option>
+                        <option value="students">Students</option>
+                        <option value="family">Families</option>
+                        <option value="working_professionals">Working professionals</option>
+                      </select>
+                    </div>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={petFriendlyOnly} onChange={(e) => { setPetFriendlyOnly(e.target.checked); setCurrentPage(1); }} />
+                      Pet-friendly only (simulated)
+                    </label>
+                  </>
+                )}
+
                 {/* 8. Amenities */}
                 <div>
                   <label className="gs-form-label" style={{ marginBottom: '0.45rem', display: 'block' }}>{t.filterAmenities}</label>
@@ -2638,7 +2948,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                 </div>
 
                 {/* 9. Statutory Integrity Toggles */}
-                <div style={{ padding: '0.85rem', backgroundColor: 'var(--gs-bg-canvas)', borderRadius: 'var(--gs-radius-md)', border: '1px solid var(--gs-border)' }}>
+                {searchMode === 'first_party' && <div style={{ padding: '0.85rem', backgroundColor: 'var(--gs-bg-canvas)', borderRadius: 'var(--gs-radius-md)', border: '1px solid var(--gs-border)' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.86rem', fontWeight: 600, color: 'var(--gs-forest-deep)', cursor: 'pointer', marginBottom: '0.5rem' }}>
                     <input
                       type="checkbox"
@@ -2660,7 +2970,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                     <Clock size={16} color="#059669" />
                     <span>{t.filterConfirmedOnly}</span>
                   </label>
-                </div>
+                </div>}
               </div>
 
               {/* Drawer Footer Actions */}
@@ -2725,7 +3035,7 @@ export const FindPropertyPage: React.FC<FindPropertyPageProps> = ({
                     <tr style={{ backgroundColor: 'var(--gs-bg-canvas)', borderBottom: '2px solid var(--gs-border)' }}>
                       <th style={{ padding: '0.75rem 0.85rem', color: 'var(--gs-forest-deep)', fontWeight: 700 }}>Target Region</th>
                       <th style={{ padding: '0.75rem 0.85rem', color: 'var(--gs-forest-deep)', fontWeight: 700 }}>Operational Status</th>
-                      <th style={{ padding: '0.75rem 0.85rem', color: 'var(--gs-forest-deep)', fontWeight: 700, textAlign: 'center' }}>Active Verified Listings</th>
+                      <th style={{ padding: '0.75rem 0.85rem', color: 'var(--gs-forest-deep)', fontWeight: 700, textAlign: 'center' }}>Eligible First-Party Listings</th>
                       <th style={{ padding: '0.75rem 0.85rem', color: 'var(--gs-forest-deep)', fontWeight: 700 }}>Coverage Scope & Limitations</th>
                     </tr>
                   </thead>

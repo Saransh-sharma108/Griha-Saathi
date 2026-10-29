@@ -1,9 +1,9 @@
 @echo off
-title Griha Saathi - Development Server
-echo ======================================================================
-echo   GRIHA SAATHI - TRUSTWORTHY RENTAL HOUSING PLATFORM
-echo   Launching Vite Dev Server (Port 3000) ^& Express Backend (Port 5000)...
-echo ======================================================================
-echo.
-npm.cmd run dev
-pause
+setlocal
+cd /d "%~dp0"
+
+set "ACTION=%~1"
+if not defined ACTION set "ACTION=start"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0start.ps1" -Action "%ACTION%"
+exit /b %ERRORLEVEL%

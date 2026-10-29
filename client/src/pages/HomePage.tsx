@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { NavSection } from '../components/Header';
 import { SupportedLanguage, Property, PropertyComparisonItem } from '@shared/types';
 import { CinematicArchitecturalHero } from '../components/CinematicArchitecturalHero';
+import { TrustValueSection } from '../components/TrustValueSection';
 import { HomeDNAStudio } from '../components/homeDna/HomeDNAStudio';
 import { PropertyComparisonModal } from '../components/PropertyComparisonModal';
-import { Scale, X, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Scale, X, ArrowRight, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react';
 
 interface HomePageProps {
   onNavigate?: (section: NavSection) => void;
@@ -96,7 +97,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           mounted at the root in App.tsx.
           ===================================================================== */}
       <div className="gs-homepage-foreground" id="homepage-foreground">
-        {/* 1. Cinematic Architectural Stage Hero */}
+        {/* 1. Cinematic Architectural Stage Hero — “Your Peace Deserves an Address.” */}
         <CinematicArchitecturalHero
           onNavigate={onNavigate || (() => {})}
           onBuildDnaClick={handleScrollToDna}
@@ -104,7 +105,14 @@ export const HomePage: React.FC<HomePageProps> = ({
           language={language}
         />
 
-        {/* 2. Signature Home DNA Studio Section */}
+        {/* 2. Trust-First Value Proposition Section */}
+        <TrustValueSection
+          onNavigate={onNavigate || (() => {})}
+          onScrollToDna={handleScrollToDna}
+          language={language}
+        />
+
+        {/* 3. Signature Home DNA Studio Section */}
         <HomeDNAStudio
           onNavigate={onNavigate || (() => {})}
           language={language}
@@ -165,9 +173,14 @@ export const HomePage: React.FC<HomePageProps> = ({
           role="region"
           aria-label="Property comparison dock"
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#FFFFFF', fontSize: '0.88rem', fontWeight: 700 }}>
-            <Scale size={16} color="#52B788" />
-            <span>Comparing <strong style={{ color: '#DCFCE7' }}>{compareList.length}</strong> / 4</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#FFFFFF', fontSize: '0.88rem', fontWeight: 700 }}>
+              <Scale size={16} color="#52B788" />
+              <span>Comparing <strong style={{ color: '#DCFCE7' }}>{compareList.length}</strong> / 4</span>
+            </div>
+            <span className="gs-compare-tagline" style={{ fontSize: '0.76rem', color: '#A3B8AC', fontStyle: 'italic' }}>
+              Good homes deserve good comparisons.
+            </span>
           </div>
 
           <div style={{ display: 'flex', gap: '0.35rem' }}>

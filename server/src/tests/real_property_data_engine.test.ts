@@ -3,11 +3,13 @@ import crypto from 'crypto';
 import { db, FRESHNESS_POLICY_DAYS } from '../db.js';
 import { propertyDataEngine } from '../propertyDataEngine/propertyDataEngine.js';
 import { TARGET_REGIONS_LIST } from '../propertyDataEngine/adapters/firstPartyDirectAdapter.js';
+import { isPubliclyDiscoverable } from '../propertyDataEngine/publicListingPolicy.js';
 import { Property, TargetState, VerificationRecord } from '../../../shared/types.js';
 
+// All property and verification records in this file are synthetic test fixtures, not live listings.
 async function runRealPropertyDataEngineTestSuite() {
   console.log('================================================================');
-  console.log('GRIHA SAATHI — REAL PROPERTY DATA ENGINE & FIVE-REGION TEST SUITE');
+  console.log('GRIHA SAATHI — PROPERTY DATA ENGINE TEST SUITE (SYNTHETIC FIXTURES ONLY)');
   console.log('================================================================\n');
 
   // Reset database state for fresh test execution
@@ -24,7 +26,7 @@ async function runRealPropertyDataEngineTestSuite() {
   assert.strictEqual(db.properties.size, 0, 'Database must contain 0 synthetic listings in default state');
   
   const initialRegionalMatrix = propertyDataEngine.getRegionalCoverageMatrix();
-  assert.strictEqual(initialRegionalMatrix.totalGenuineListings, 0, 'Total genuine listings must be 0 initially');
+  assert.strictEqual(initialRegionalMatrix.totalEligibleListings, 0, 'Eligible listing count must be 0 initially');
   assert.strictEqual(initialRegionalMatrix.zeroSyntheticPolicyEnforced, true);
   assert.strictEqual(initialRegionalMatrix.totalRegions, 5);
 
@@ -53,18 +55,18 @@ async function runRealPropertyDataEngineTestSuite() {
 
   const dataGovIn = providers.find((p) => p.id === 'data_gov_in');
   assert.ok(dataGovIn, 'Data.gov.in adapter must exist');
-  assert.strictEqual(dataGovIn?.status, 'awaiting_credentials');
+  assert.strictEqual(dataGovIn?.status, 'unsupported');
   assert.strictEqual(dataGovIn?.configured, false);
-  assert.ok(dataGovIn?.requiredCredentials.includes('DATA_GOV_IN_API_KEY'));
+  assert.strictEqual(dataGovIn?.requiredCredentials.length, 0);
 
   const rera = providers.find((p) => p.id === 'state_rera_registry');
   assert.ok(rera, 'State RERA adapter must exist');
-  assert.strictEqual(rera?.status, 'awaiting_credentials');
+  assert.strictEqual(rera?.status, 'unsupported');
   assert.strictEqual(rera?.configured, false);
 
   const syndication = providers.find((p) => p.id === 'partner_syndication');
   assert.ok(syndication, 'Partner syndication adapter must exist');
-  assert.strictEqual(syndication?.status, 'awaiting_credentials');
+  assert.strictEqual(syndication?.status, 'unsupported');
   assert.strictEqual(syndication?.configured, false);
 
   // Test that unconfigured adapters return 0 results and never fake listings
@@ -76,7 +78,7 @@ async function runRealPropertyDataEngineTestSuite() {
   // --------------------------------------------------------------------------
   // TEST 3: Traceable Provenance Contract (Directive 5)
   // --------------------------------------------------------------------------
-  console.log('[Test 3] Testing Traceable Provenance Contract on Authentic Listings...');
+  console.log('[Test 3] Testing Traceable Provenance Contract on Eligible Fixtures...');
   const now = Date.now();
   const tenDaysAgo = new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -140,20 +142,20 @@ async function runRealPropertyDataEngineTestSuite() {
   assert.strictEqual(returnedProp.provenance?.verificationBreakdown.hasTitleDeedCheck, true);
   assert.strictEqual(returnedProp.provenance?.verificationBreakdown.hasPhysicalInspection, true);
   assert.strictEqual(returnedProp.provenance?.verificationBreakdown.hasIdentityVerification, true);
-  console.log('✓ Test 3 Passed: Complete traceable provenance contract verified.\n');
+  console.log('✓ Test 3 Passed: Provenance shape and mapping verified for the fixture.\n');
 
   // --------------------------------------------------------------------------
   // TEST 4: Five-Region Matrix Evidence Update (Directive 3)
   // --------------------------------------------------------------------------
   console.log('[Test 4] Testing Five-Region Coverage Matrix Dynamic Update...');
   const updatedMatrix = propertyDataEngine.getRegionalCoverageMatrix();
-  assert.strictEqual(updatedMatrix.totalGenuineListings, 1);
+  assert.strictEqual(updatedMatrix.totalEligibleListings, 1);
   assert.strictEqual(updatedMatrix.connectedRegionsCount, 1);
   
   // Haryana should now be 'connected' with count 1
   assert.strictEqual(updatedMatrix.regions['Haryana'].status, 'connected');
   assert.strictEqual(updatedMatrix.regions['Haryana'].activeListingCount, 1);
-  assert.ok(updatedMatrix.regions['Haryana'].statusLabel.includes('1 Verified Listing'));
+  assert.ok(updatedMatrix.regions['Haryana'].statusLabel.includes('1 Approved Listing'));
 
   // Other 4 regions must remain truthfully 'connected_no_listings' with count 0
   assert.strictEqual(updatedMatrix.regions['Delhi'].status, 'connected_no_listings');
@@ -195,7 +197,11 @@ async function runRealPropertyDataEngineTestSuite() {
       propertyId: 'prop_pb_stale_02',
       status: 'authoritative_verified',
       disclaimer: 'PLRS Punjab verified.',
-      stages: [{ stage: 'land_registry', authorityName: 'PLRS Punjab', status: 'verified', details: 'Verified.' }],
+      stages: [
+        { stage: 'land_registry', authorityName: 'PLRS Punjab', status: 'verified', details: 'Test fixture.' },
+        { stage: 'owner_identity', authorityName: 'Fixture identity provider', status: 'verified', details: 'Test fixture.' },
+        { stage: 'physical_inspection', authorityName: 'Fixture inspection', status: 'verified', details: 'Test fixture.' },
+      ],
     },
     ownerId: 'usr_owner_mohali',
     availableFrom: '2026-09-01',
@@ -249,6 +255,29 @@ async function runRealPropertyDataEngineTestSuite() {
     updatedAt: new Date().toISOString(),
     dataSource: 'owner_submission',
   };
+  assert.strictEqual(isPubliclyDiscoverable(fakeProp), false, 'Public search must exclude placeholder listings');
+  assert.strictEqual(
+    isPubliclyDiscoverable({
+      ...realPropertyHaryana,
+      title: 'Riverside Apartment',
+      description: 'Owner-submitted rental listing.',
+      photos: ['/uploads/sample_property.jpg'],
+      verificationStatus: 'unverified',
+      verificationRecord: undefined,
+    }),
+    false,
+    'Public search must exclude sample-image fixtures'
+  );
+  assert.strictEqual(
+    isPubliclyDiscoverable({
+      ...realPropertyHaryana,
+      dataSource: 'authorized_registry',
+      verificationStatus: 'unverified',
+      verificationRecord: undefined,
+    }),
+    false,
+    'Public search must not present unsupported external registry records as first-party listings'
+  );
 
   assert.throws(
     () => propertyDataEngine.validateDataIntegrity(fakeProp),
@@ -275,7 +304,7 @@ async function runRealPropertyDataEngineTestSuite() {
   db.properties.clear();
 
   console.log('================================================================');
-  console.log('ALL 6 REAL PROPERTY DATA ENGINE TESTS PASSED WITH 100% SUCCESS!');
+  console.log('PROPERTY DATA ENGINE TEST SUITE PASSED.');
   console.log('================================================================');
 }
 
