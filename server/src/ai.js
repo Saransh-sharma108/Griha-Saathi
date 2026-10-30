@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { processSaathiChat, getSaathiProviderStatus, generatePropertyComparison } from './saathiAiService.js';
+import { db } from './db.js';
+import { processSaathiChat, getSaathiProviderStatus, generatePropertyComparison, generateComprehensiveComparison, analyzeFraudRisk, recordAiFeedback, getAiFeedbackSummary } from './saathiAiService.js';
 import { authenticateUser } from './middleware.js';
 export const aiRouter = Router();
 aiRouter.use(authenticateUser);
@@ -89,7 +90,7 @@ aiRouter.post('/chat', async (req, res) => {
                 error: 'Too many queries. Saathi AI rate limit is 30 requests per minute.',
             });
         }
-        const { query, language = 'en' } = req.body;
+        const { query, language = 'en', sessionId } = req.body;
         if (!query || typeof query !== 'string' || query.trim().length === 0) {
             return res.status(400).json({ success: false, error: 'Query text is required.' });
         }
@@ -97,6 +98,7 @@ aiRouter.post('/chat', async (req, res) => {
             userQuery: query,
             language: language,
             authenticatedUserId: req.user?.id,
+            sessionId,
         });
         return res.json({
             success: true,
@@ -110,7 +112,7 @@ aiRouter.post('/chat', async (req, res) => {
 });
 /**
  * POST /api/ai/compare
- * Side-by-side comparison of 2-4 real property records.
+ * Deep comparison of 2-4 real property records with trade-off analysis.
  */
 aiRouter.post('/compare', (req, res) => {
     try {
@@ -122,14 +124,86 @@ aiRouter.post('/compare', (req, res) => {
             });
         }
         const comparisonTable = generatePropertyComparison(propertyIds);
+        const comprehensive = generateComprehensiveComparison(propertyIds);
         return res.json({
             success: true,
             comparison: comparisonTable,
+            comprehensive,
         });
     }
     catch (error) {
         console.error('Error in POST /api/ai/compare:', error);
         return res.status(500).json({ success: false, error: 'Internal server error comparing properties.' });
+    }
+});
+/**
+ * POST /api/ai/fraud-check
+ * Evaluates listing descriptions or owner communications for known fraud and scam indicators.
+ */
+aiRouter.post('/fraud-check', (req, res) => {
+    try {
+        const { text, propertyId } = req.body;
+        if (!text || typeof text !== 'string') {
+            return res.status(400).json({ success: false, error: 'text is required for fraud analysis.' });
+        }
+        const property = propertyId ? db.properties.get(propertyId) : undefined;
+        const analysis = analyzeFraudRisk(text, property);
+        return res.json({
+            success: true,
+            analysis,
+        });
+    }
+    catch (error) {
+        console.error('Error in POST /api/ai/fraud-check:', error);
+        return res.status(500).json({ success: false, error: 'Internal server error performing fraud check.' });
+    }
+});
+/**
+ * POST /api/ai/feedback
+ * Records user feedback on recommendation quality, accuracy, and freshness.
+ */
+aiRouter.post('/feedback', (req, res) => {
+    try {
+        const { messageId, queryText, rating, comment } = req.body;
+        if (!messageId || !rating) {
+            return res.status(400).json({ success: false, error: 'messageId and rating are required.' });
+        }
+        const validRatings = ['helpful', 'not_relevant', 'incorrect_information', 'outdated_information', 'missing_information'];
+        if (!validRatings.includes(rating)) {
+            return res.status(400).json({ success: false, error: `rating must be one of: ${validRatings.join(', ')}` });
+        }
+        const recorded = recordAiFeedback({
+            messageId,
+            queryText,
+            rating,
+            comment,
+            userId: req.user?.id,
+        });
+        return res.json({
+            success: true,
+            feedback: recorded,
+        });
+    }
+    catch (error) {
+        console.error('Error in POST /api/ai/feedback:', error);
+        return res.status(500).json({ success: false, error: 'Internal server error recording feedback.' });
+    }
+});
+/**
+ * GET /api/ai/feedback/summary
+ * Returns aggregated user feedback metrics.
+ */
+aiRouter.get('/feedback/summary', (req, res) => {
+    try {
+        const summary = getAiFeedbackSummary();
+        return res.json({
+            success: true,
+            summary,
+        });
+    }
+    catch (error) {
+        console.error('Error in GET /api/ai/feedback/summary:', error);
+        return res.status(500).json({ success: false, error: 'Internal server error fetching feedback summary.' });
     }
 });
 aiRouter.post('/query', async (req, res) => {

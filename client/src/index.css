@@ -518,6 +518,40 @@ textarea:focus-visible {
   color: var(--gs-text-primary);
 }
 
+/* Chat Message Bubbles & Anti-Fraud Security Panels */
+.gs-chat-bubble-sent {
+  background-color: #064E3B !important;
+  color: #F4FFF9 !important;
+  border: 1px solid #168A65 !important;
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: 0 4px 14px rgba(6, 78, 59, 0.35);
+}
+
+.gs-chat-bubble-received {
+  background-color: #10291F !important;
+  color: #E8F2EC !important;
+  border: 1px solid #24513D !important;
+  border-radius: 18px 18px 18px 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.gs-anti-fraud-banner {
+  background-color: #10291F !important;
+  border: 1px solid #176B50 !important;
+  border-radius: var(--gs-radius-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(53, 214, 160, 0.12);
+  color: #E8F2EC;
+}
+
+.gs-anti-fraud-banner strong,
+.gs-anti-fraud-banner h3 {
+  color: #F2FFF7 !important;
+}
+
+.gs-anti-fraud-banner p {
+  color: #B8D8C8 !important;
+}
+
 /* Connected 4-Stage Verification Pipeline */
 .gs-pipeline-track {
   display: grid;
@@ -808,116 +842,532 @@ textarea:focus-visible {
    ISLAND B: The Intelligent Navigation Command Bar (Right-aligned, Nav Dock & Controls)
    ============================================================================== */
 
-/* Floating Header Outer Wrapper */
+/* ==============================================================================
+   GRIHA SAATHI — FLOATING EMERALD GLASSMORPHIC PILL NAVIGATION
+   Architecture: Centered floating pill container floating over content.
+   Fixed / sticky elevation with hardware-accelerated backdrop blur.
+   ============================================================================== */
+
+/* Floating Header Outer Sticky Wrapper */
 .gs-header-wrapper {
   position: sticky;
-  top: 0;
+  top: 0.75rem;
   z-index: 1000;
   width: 100%;
-  padding: 0.85rem 1.75rem 0.65rem;
-  background: transparent;
+  padding: 0 1.25rem;
   pointer-events: none;
-  transition: padding 0.25s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.25s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .gs-header-wrapper.gs-header-scrolled {
-  padding: 0.5rem 1.5rem 0.45rem;
-  background: rgba(11, 23, 20, 0.52);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
+  top: 0.4rem;
 }
 
-/* Dual Island Responsive Layout Shell: Deliberate horizontal spacing, no merging */
-.gs-dual-island-shell {
+/* Centered Floating Pill Navigation Container (Responsive Flexbox Architecture) */
+.gs-floating-pill-nav {
+  pointer-events: auto;
   width: 100%;
   max-width: 1560px;
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1.25rem;
-  pointer-events: none;
-}
-
-/* Shared Island Surface Materials: Deep Forest Glass + Emerald Border Highlight */
-.gs-island-brand,
-.gs-island-nav,
-.gs-command-bar {
-  pointer-events: auto;
+  gap: clamp(0.5rem, 1.2vw, 1.25rem);
+  padding: 0.34rem 0.65rem 0.34rem 0.85rem;
   border-radius: 9999px;
-  background: rgba(11, 23, 20, 0.88);
-  -webkit-backdrop-filter: blur(24px) saturate(170%);
-  backdrop-filter: blur(24px) saturate(170%);
-  border: 1px solid rgba(69, 214, 160, 0.22);
+  background: rgba(8, 24, 18, 0.85);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(16, 185, 129, 0.16);
   box-shadow: 
-    0 16px 36px -4px rgba(0, 0, 0, 0.55),
-    0 4px 14px -2px rgba(11, 23, 20, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 0 0 1px rgba(69, 214, 160, 0.05);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    0 12px 36px -4px rgba(0, 0, 0, 0.52),
+    0 2px 10px -2px rgba(16, 185, 129, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  overflow: visible;
+  box-sizing: border-box;
+  min-width: 0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @supports not (backdrop-filter: blur(10px)) {
-  .gs-island-brand,
-  .gs-island-nav,
-  .gs-command-bar {
-    background: #0B1714;
-    border-color: rgba(69, 214, 160, 0.35);
+  .gs-floating-pill-nav {
+    background: #081812;
+    border-color: rgba(16, 185, 129, 0.3);
   }
 }
 
-/* Scrolled Surface State: Higher density & elevation */
-.gs-header-wrapper.gs-header-scrolled .gs-island-brand,
-.gs-header-wrapper.gs-header-scrolled .gs-island-nav,
-.gs-header-wrapper.gs-header-scrolled .gs-command-bar {
-  background: rgba(8, 17, 15, 0.94);
-  border-color: rgba(69, 214, 160, 0.28);
+.gs-header-wrapper.gs-header-scrolled .gs-floating-pill-nav {
+  background: rgba(6, 18, 14, 0.92);
+  border-color: rgba(16, 185, 129, 0.26);
   box-shadow: 
-    0 22px 48px -4px rgba(0, 0, 0, 0.7),
-    0 6px 18px -2px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    0 16px 42px -4px rgba(0, 0, 0, 0.68),
+    0 4px 16px -2px rgba(16, 185, 129, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
-/* ==============================================================================
-   ISLAND A — THE GRIHA SAATHI BRAND ANCHOR
-   Anchored near extreme left of viewport. Deep forest glass, emerald border.
-   ============================================================================== */
-.gs-island-brand {
+/* ZONE 1: BRAND IDENTITY (LEFT) */
+.gs-nav-pill-brand-zone {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  user-select: none;
+  min-width: 0;
+}
+
+.gs-nav-pill-logo-link {
   display: inline-flex;
   align-items: center;
-  padding: 0.42rem 1rem;
+  gap: 0.55rem;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.gs-nav-pill-logo-link:hover {
+  opacity: 0.95;
+  transform: translateY(-0.5px);
+}
+
+/* Official Heritage Logo Mark */
+.gs-nav-heritage-logo {
+  height: 38px;
+  width: auto;
+  max-height: 40px;
+  aspect-ratio: 142 / 88;
+  object-fit: contain;
   flex-shrink: 0;
   user-select: none;
+  display: block;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: high-quality;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease;
 }
 
-.gs-island-brand:hover {
-  border-color: rgba(69, 214, 160, 0.42);
+.gs-nav-pill-logo-link:hover .gs-nav-heritage-logo {
+  transform: translateY(-0.5px) scale(1.03);
+  filter: drop-shadow(0 2px 8px rgba(229, 169, 85, 0.35));
+}
+
+.gs-nav-heritage-logo-mobile {
+  height: 32px;
+}
+
+.gs-nav-pill-logo-icon {
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(135deg, #123D2C 0%, #0B2A20 100%);
+  border: 1px solid rgba(229, 169, 85, 0.6);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #E5A955;
+  box-shadow: 0 2px 8px rgba(11, 42, 32, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.gs-nav-pill-logo-link:hover .gs-nav-pill-logo-icon {
+  transform: translateY(-0.5px) scale(1.02);
+  border-color: rgba(229, 169, 85, 0.85);
+  box-shadow: 0 4px 12px rgba(11, 42, 32, 0.35);
+}
+
+.gs-nav-pill-brand-name {
+  font-family: var(--gs-font-heading);
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: #FFFFFF;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ZONE 2: CENTER NAVIGATION LINKS & RESPONSIVE TIERING */
+.gs-nav-pill-center-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.gs-nav-pill-links {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.12rem, 0.25vw, 0.25rem);
+  list-style: none;
+  margin: 0;
+  padding: 0.18rem 0.32rem;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.gs-nav-pill-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  height: 34px;
+  padding: 0 0.56rem;
+  border-radius: 9999px;
+  color: #CBD5E1; /* text-slate-300 */
+  font-family: var(--gs-font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.18s ease-out;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+.gs-nav-pill-link:hover {
+  color: #FFFFFF;
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.gs-nav-pill-link:focus-visible {
+  outline: 2px solid #34D399;
+  outline-offset: 2px;
+}
+
+.gs-nav-pill-link.active {
+  color: #6EE7B7; /* text-emerald-300 */
+  background: rgba(16, 185, 129, 0.15); /* bg-emerald-500/15 */
+  border-color: rgba(52, 211, 153, 0.28); /* border-emerald-400/20 */
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Position 7: Saathi AI Distinct Accent Styling in Primary Navigation */
+.gs-nav-pill-link-saathi {
+  color: #A7F3D0;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+  font-weight: 600;
+}
+
+.gs-nav-pill-link-saathi:hover {
+  background: rgba(16, 185, 129, 0.24);
+  border-color: rgba(52, 211, 153, 0.55);
+  color: #FFFFFF;
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.22);
+}
+
+.gs-nav-pill-link-saathi.active {
+  background: rgba(16, 185, 129, 0.32);
+  border-color: #34D399;
+  color: #FFFFFF;
+  box-shadow: 0 0 16px rgba(52, 211, 153, 0.32);
+}
+
+.gs-saathi-spark {
+  color: #34D399;
+  transition: transform 0.2s ease;
+}
+
+.gs-nav-pill-link-saathi:hover .gs-saathi-spark {
+  transform: rotate(15deg) scale(1.1);
+  color: #A7F3D0;
+}
+
+.gs-nav-pill-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #94A3B8;
+  transition: color 0.18s ease;
+}
+
+.gs-nav-pill-link.active .gs-nav-pill-icon {
+  color: #34D399;
+}
+
+.gs-nav-pill-link:hover .gs-nav-pill-icon {
+  color: #6EE7B7;
+}
+
+/* Secondary "More" Dropdown (Narrow Desktop: 1024px - 1279px) */
+.gs-nav-narrow-more-item {
+  display: none;
+}
+
+.gs-nav-more-wrapper {
+  position: relative;
+}
+
+.gs-nav-more-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  height: 34px;
+  padding: 0 0.56rem;
+  border-radius: 9999px;
+  color: #CBD5E1;
+  font-family: var(--gs-font-body);
+  font-size: 0.8rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.18s ease-out;
+  white-space: nowrap;
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+.gs-nav-more-btn:hover,
+.gs-nav-more-btn[aria-expanded="true"] {
+  color: #FFFFFF;
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.gs-nav-more-btn.has-active {
+  color: #6EE7B7;
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(52, 211, 153, 0.28);
+  font-weight: 600;
+}
+
+.gs-more-chevron {
+  transition: transform 0.2s ease;
+  color: #94A3B8;
+}
+
+.gs-more-chevron.rotated {
+  transform: rotate(180deg);
+  color: #34D399;
+}
+
+.gs-nav-more-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  background: rgba(8, 24, 18, 0.96);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: 14px;
   box-shadow: 
-    0 20px 42px -4px rgba(0, 0, 0, 0.65),
-    0 0 20px rgba(69, 214, 160, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    0 16px 36px -4px rgba(0, 0, 0, 0.65),
+    0 0 16px rgba(16, 185, 129, 0.1);
+  padding: 0.4rem;
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  animation: gs-dropdown-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* ==============================================================================
-   ISLAND B — THE INTELLIGENT NAVIGATION COMMAND BAR
-   Independent floating container right of brand island. Holds nav dock & controls.
-   ============================================================================== */
-.gs-island-nav,
-.gs-command-bar {
+.gs-nav-more-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  color: #E2E8F0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-decoration: none;
+  background: transparent;
+  border: 1px solid transparent;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.gs-nav-more-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+}
+
+.gs-nav-more-item.active {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(52, 211, 153, 0.3);
+  color: #6EE7B7;
+  font-weight: 600;
+}
+
+/* ZONE 3: RIGHT ACTIONS & GLOBAL CONTROLS */
+.gs-nav-pill-right-zone {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 0.75rem;
-  padding: 0.38rem 0.75rem;
-  flex-shrink: 0;
-  margin-left: auto;
-  max-width: none;
-  width: auto;
+  gap: clamp(0.3rem, 0.4vw, 0.45rem);
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
-.gs-island-nav:hover,
-.gs-command-bar:hover {
-  border-color: rgba(69, 214, 160, 0.34);
+/* Primary Action CTA ("Listing Property") */
+.gs-nav-pill-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  height: 36px;
+  padding: 0 0.85rem;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #059669 0%, #0D9488 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(110, 231, 183, 0.45);
+  font-family: var(--gs-font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 
+    0 4px 14px -1px rgba(5, 150, 105, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+.gs-nav-pill-cta:hover {
+  background: linear-gradient(135deg, #10B981 0%, #14B8A6 100%);
+  border-color: rgba(167, 243, 208, 0.7);
+  box-shadow: 
+    0 6px 20px -2px rgba(5, 150, 105, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
+  color: #FFFFFF;
+}
+
+.gs-nav-pill-cta:active {
+  transform: translateY(0);
+}
+
+.gs-nav-pill-cta.active {
+  background: linear-gradient(135deg, #047857 0%, #0F766E 100%);
+  border-color: #34D399;
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.45);
+}
+
+.gs-notif-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #E2E8F0;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  transition: all 0.18s ease;
+}
+
+.gs-notif-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #FFFFFF;
+}
+
+.gs-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  height: 36px;
+  padding: 0 0.65rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #E2E8F0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  box-sizing: border-box;
+  line-height: 1;
+  transition: all 0.18s ease;
+}
+
+.gs-dropdown-trigger:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #FFFFFF;
+}
+
+/* Auth Sign In Button */
+.gs-nav-pill-auth-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.38rem 0.85rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #F4F7F5;
+  font-family: var(--gs-font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.gs-nav-pill-auth-btn:hover {
+  background: rgba(20, 125, 90, 0.22);
+  border-color: rgba(69, 214, 160, 0.42);
+  color: #FFFFFF;
+  transform: translateY(-0.5px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.gs-nav-pill-auth-btn:focus-visible {
+  outline: 2px solid #34D399;
+  outline-offset: 2px;
+}
+
+/* Tablet & Mobile Hamburger Button (< 1024px) */
+.gs-nav-pill-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #F4F7F5;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.gs-nav-pill-hamburger:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: #FFFFFF;
+}
+
+.gs-nav-pill-hamburger:focus-visible {
+  outline: 2px solid #34D399;
+  outline-offset: 2px;
 }
 
 /* Zone A: Far Left Brand Identity */
@@ -1466,20 +1916,105 @@ textarea:focus-visible {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 320px;
-  max-width: 85vw;
+  width: 340px;
+  max-width: 88vw;
   height: 100vh;
   height: 100dvh;
-  background-color: var(--gs-bg-card);
-  border-left: 1px solid var(--gs-border);
-  padding: 1.5rem 1.25rem;
+  background: rgba(8, 24, 17, 0.96);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border-left: 1px solid rgba(16, 185, 129, 0.2);
+  padding: 1.25rem 1.15rem;
   z-index: 99999;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.65rem;
   overflow-y: auto;
-  box-shadow: -10px 0 30px rgba(16, 38, 26, 0.25);
-  animation: gsDrawerSlideIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: -14px 0 45px rgba(0, 0, 0, 0.65);
+  animation: gsDrawerSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gs-mobile-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.gs-mobile-user-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0.95rem;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+}
+
+.gs-mobile-nav-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.gs-mobile-block-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #64748B;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.15rem;
+  padding-left: 0.4rem;
+}
+
+.gs-mobile-block-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.gs-mobile-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.65rem 0.95rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #E2E8F0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.gs-mobile-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+}
+
+.gs-mobile-nav-btn.active {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(52, 211, 153, 0.35);
+  color: #6EE7B7;
+  font-weight: 600;
+}
+
+.gs-mobile-active-dot {
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  background-color: #34D399;
+  margin-left: auto;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.85);
 }
 
 @keyframes gsDrawerSlideIn {
@@ -1685,39 +2220,61 @@ textarea:focus-visible {
 
 /* Account Profile Pill */
 .gs-profile-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.3rem 0.75rem 0.3rem 0.4rem;
+  gap: 0.42rem;
+  height: 36px;
+  padding: 0 0.65rem 0 0.3rem;
   border-radius: 9999px;
-  background-color: rgba(16, 37, 26, 0.7);
-  border: 1px solid var(--gs-border);
+  background-color: rgba(16, 37, 26, 0.75);
+  border: 1px solid rgba(52, 211, 153, 0.28);
   color: var(--gs-text-primary);
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 1px 3px rgba(11, 42, 32, 0.04);
+  flex-shrink: 0;
+  min-width: 0;
+  white-space: nowrap;
+  box-sizing: border-box;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .gs-profile-btn:hover {
-  border-color: rgba(18, 61, 44, 0.18);
-  background-color: rgba(18, 61, 44, 0.08);
+  border-color: rgba(52, 211, 153, 0.55);
+  background-color: rgba(16, 37, 26, 0.95);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
 }
 
 .gs-avatar-circle {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #123D2C 0%, #0B2A20 100%);
+  background: linear-gradient(135deg, #059669 0%, #10B981 100%);
   color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 0.75rem;
+  font-weight: 800;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.gs-profile-role-badge {
+  font-size: 0.65rem;
+  padding: 0.12rem 0.42rem;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.2);
+  color: #6EE7B7;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   font-weight: 700;
   flex-shrink: 0;
-  box-shadow: 0 1px 3px rgba(11, 42, 32, 0.2);
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
 .gs-mobile-menu-btn {
@@ -2539,139 +3096,272 @@ textarea:focus-visible {
   }
 }
 
-/* Tablet & Compact Desktop (<= 1140px) */
-@media (max-width: 1140px) {
-  .gs-nav-centre, .gs-nav-links {
+/* ==============================================================================
+   RESPONSIVE COLLAPSING MATRIX — FLOATING PILL NAVIGATION TIERING
+   Tier 1: Desktop Wide (>= 1240px) — Full 7 primary destinations + full actions
+   Tier 2: Compact Desktop / Laptop (1024px - 1239px) — Core links + "More" dropdown
+   Tier 3: Tablet (768px - 1023px) — Brand + Quick List + Notif + Profile + Hamburger
+   Tier 4: Mobile (< 768px down to 360px) — Brand + Quick List + Hamburger + Slide-over drawer
+   ============================================================================== */
+
+/* Tier 1: Desktop Wide (>= 1240px: covers 1280px, 1366px, 1440px, 1920px) */
+@media (min-width: 1240px) {
+  .gs-floating-pill-nav {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: clamp(0.5rem, 1vw, 1.25rem) !important;
+    padding: 0.35rem 0.65rem 0.35rem 0.85rem !important;
+  }
+  .gs-nav-pill-center-zone {
+    display: flex !important;
+  }
+  .gs-nav-wide-item {
+    display: inline-flex !important;
+  }
+  .gs-nav-narrow-more-item {
     display: none !important;
   }
-  .gs-mobile-menu-btn {
+  .gs-nav-pill-cta {
+    display: inline-flex !important;
+  }
+  .gs-nav-lang-dropdown {
+    display: inline-flex !important;
+  }
+  .gs-nav-profile-dropdown {
+    display: inline-flex !important;
+  }
+  .gs-nav-pill-hamburger {
+    display: none !important;
+  }
+  .gs-mobile-quick-list-btn {
+    display: none !important;
+  }
+  .gs-profile-name {
+    display: inline-block !important;
+    max-width: 95px;
+  }
+}
+
+/* Specific refinement for intermediate laptops (1240px - 1399px) to prevent badge collision */
+@media (min-width: 1240px) and (max-width: 1399px) {
+  .gs-profile-name {
+    max-width: 70px;
+  }
+  .gs-nav-pill-links {
+    gap: 0.15rem;
+    padding: 0.18rem 0.25rem;
+  }
+  .gs-nav-pill-link {
+    padding: 0 0.5rem;
+    font-size: 0.78rem;
+    gap: 0.28rem;
+  }
+  .gs-nav-pill-cta {
+    padding: 0 0.75rem;
+    font-size: 0.78rem;
+  }
+}
+
+/* Tier 2: Compact Desktop / Laptop (1024px - 1239px) */
+@media (max-width: 1239px) and (min-width: 1024px) {
+  .gs-floating-pill-nav {
     display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+    padding: 0.32rem 0.55rem 0.32rem 0.75rem !important;
+  }
+  .gs-nav-pill-center-zone {
+    display: flex !important;
+  }
+  .gs-nav-wide-item {
+    display: none !important;
+  }
+  .gs-nav-narrow-more-item {
+    display: inline-flex !important;
+  }
+  .gs-nav-pill-cta {
+    display: inline-flex !important;
+    padding: 0 0.7rem !important;
+    font-size: 0.78rem !important;
+  }
+  .gs-nav-lang-dropdown {
+    display: inline-flex !important;
+  }
+  .gs-nav-profile-dropdown {
+    display: inline-flex !important;
+  }
+  .gs-nav-pill-hamburger {
+    display: none !important;
+  }
+  .gs-mobile-quick-list-btn {
+    display: none !important;
+  }
+  .gs-profile-name {
+    display: none !important; /* Hide name text, display avatar circle ("SS") + "OWNER" badge */
+  }
+}
+
+/* Tier 3: Tablet (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .gs-header-wrapper {
+    padding: 0 0.85rem;
+    top: 0.5rem;
+  }
+  .gs-floating-pill-nav {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 0.32rem 0.55rem 0.32rem 0.75rem !important;
+    gap: 0.5rem !important;
+  }
+  .gs-nav-heritage-logo {
+    height: 34px;
+  }
+  .gs-nav-pill-brand-name {
+    font-size: 1rem;
+  }
+  .gs-nav-pill-center-zone {
+    display: none !important;
+  }
+  .gs-nav-pill-cta {
+    display: none !important;
+  }
+  .gs-nav-lang-dropdown {
+    display: none !important;
+  }
+  .gs-nav-profile-dropdown {
+    display: inline-flex !important;
+  }
+  .gs-profile-name {
+    display: none !important;
+  }
+  .gs-profile-role-badge {
+    display: none !important;
+  }
+  .gs-profile-btn {
+    padding: 0 0.4rem 0 0.25rem !important;
   }
   .gs-mobile-quick-list-btn {
     display: inline-flex !important;
   }
-  .gs-search-grid {
-    grid-template-columns: 1fr 1fr;
+  .gs-nav-pill-hamburger {
+    display: inline-flex !important;
   }
 }
 
-/* Mobile Screens (<= 768px) */
-@media (max-width: 768px) {
+/* Tier 4: Mobile Handheld (< 768px) */
+@media (max-width: 767px) {
   .gs-header-wrapper {
-    padding: 0.5rem 0.85rem 0.4rem;
+    padding: 0 0.65rem;
+    top: 0.45rem;
   }
-  .gs-dual-island-shell {
-    gap: 0.5rem;
-  }
-  .gs-island-brand {
-    padding: 0.32rem 0.65rem;
-  }
-  .gs-island-nav,
-  .gs-command-bar {
-    padding: 0.32rem 0.55rem;
-    gap: 0.4rem;
-  }
-  .gs-nav-right {
-    gap: 0.4rem;
-  }
-  .gs-brand-tag {
-    display: none;
-  }
-  .gs-saathi-signal-text {
-    display: none;
-  }
-  .gs-saathi-signal {
-    padding: 0.2rem 0.38rem;
-    margin-left: 0.35rem;
-  }
-  .gs-profile-role-badge {
-    display: none;
-  }
-  .gs-profile-name {
-    max-width: 85px;
-  }
-  .gs-nav-auth-text {
-    display: none;
-  }
-  .gs-nav-auth-btn {
-    padding: 0.42rem 0.65rem;
-  }
-  .gs-mobile-menu-btn {
+  .gs-floating-pill-nav {
     display: flex !important;
-    width: 36px;
-    height: 36px;
-    flex-shrink: 0;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 0.3rem 0.45rem 0.3rem 0.65rem !important;
+    gap: 0.4rem !important;
   }
-  .gs-search-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* Narrow Mobile (<= 480px) */
-@media (max-width: 480px) {
-  .gs-header-wrapper {
-    padding: 0.35rem 0.5rem 0.25rem;
-  }
-  .gs-dual-island-shell {
-    gap: 0.35rem;
-  }
-  .gs-island-brand {
-    padding: 0.28rem 0.48rem;
-  }
-  .gs-island-nav,
-  .gs-command-bar {
-    padding: 0.28rem 0.42rem;
-    gap: 0.28rem;
-  }
-  .gs-saathi-signal {
-    display: none;
-  }
-  .gs-logo-link {
-    gap: 0.4rem;
-  }
-  .gs-logo-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 7px;
-  }
-  .gs-brand-title {
-    font-size: 0.92rem;
-  }
-  .gs-nav-right {
-    gap: 0.25rem;
-  }
-  .gs-dropdown-trigger {
-    padding: 0.28rem 0.45rem;
-    font-size: 0.75rem;
-    gap: 0.25rem;
-  }
-  .gs-notif-btn {
-    width: 30px;
+  .gs-nav-heritage-logo {
     height: 30px;
   }
-  .gs-profile-name {
-    display: none;
+  .gs-nav-pill-brand-name {
+    font-size: 0.96rem;
   }
-  .gs-profile-btn {
-    padding: 0.25rem 0.4rem;
+  .gs-nav-pill-center-zone {
+    display: none !important;
   }
-  .gs-nav-auth-btn {
-    padding: 0.35rem 0.45rem;
+  .gs-nav-pill-cta {
+    display: none !important;
+  }
+  .gs-nav-lang-dropdown {
+    display: none !important;
+  }
+  .gs-nav-profile-dropdown {
+    display: none !important;
   }
   .gs-mobile-quick-list-btn {
-    padding: 0.32rem 0.5rem;
-    font-size: 0.72rem;
+    display: inline-flex !important;
+    padding: 0 0.65rem !important;
+    font-size: 0.76rem !important;
   }
-  .gs-mobile-quick-list-text {
-    display: none;
+  .gs-nav-pill-hamburger {
+    display: inline-flex !important;
+    width: 42px !important;
+    height: 42px !important;
   }
-  .gs-mobile-menu-btn {
-    width: 32px;
-    height: 32px;
-    padding: 0;
+}
+
+/* Tier 5: Compact Mobile (<= 420px: covers 390px, 360px, etc.) */
+@media (max-width: 420px) {
+  .gs-header-wrapper {
+    padding: 0 0.45rem;
+    top: 0.35rem;
   }
-  .gs-hero-title {
-    font-size: 1.85rem;
+  .gs-floating-pill-nav {
+    padding: 0.28rem 0.38rem 0.28rem 0.55rem !important;
+    gap: 0.35rem !important;
+  }
+  .gs-nav-heritage-logo {
+    height: 26px;
+  }
+  .gs-nav-pill-brand-name {
+    font-size: 0.9rem;
+    letter-spacing: 0.02em;
+  }
+  .gs-mobile-quick-list-btn {
+    padding: 0 0.52rem !important;
+    font-size: 0.72rem !important;
+  }
+  .gs-nav-pill-hamburger {
+    width: 38px !important;
+    height: 38px !important;
+  }
+}
+
+/* Tier 5: Extra-Small Mobile (<= 360px) */
+@media (max-width: 360px) {
+  .gs-header-wrapper {
+    padding: 0 0.3rem;
+    top: 0.25rem;
+  }
+  .gs-floating-pill-nav {
+    padding: 0.24rem 0.3rem 0.24rem 0.5rem !important;
+    gap: 0.25rem !important;
+  }
+  .gs-nav-heritage-logo {
+    height: 24px;
+  }
+  .gs-nav-pill-logo-icon {
+    width: 28px;
+    height: 28px;
+  }
+  .gs-nav-pill-brand-name {
+    font-size: 0.88rem;
+  }
+  .gs-mobile-quick-list-btn {
+    padding: 0.28rem 0.42rem;
+    font-size: 0.7rem;
+  }
+  .gs-nav-pill-hamburger {
+    width: 36px;
+    height: 36px;
+  }
+}
+
+/* Motion Hygiene: Strictly respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .gs-header-wrapper,
+  .gs-floating-pill-nav,
+  .gs-nav-pill-link,
+  .gs-nav-pill-cta,
+  .gs-mobile-drawer,
+  .gs-dropdown-panel,
+  .gs-nav-more-menu {
+    animation: none !important;
+    transition: none !important;
   }
 }
 

@@ -1,68 +1,90 @@
 [
   {
-    "id": "prop_gurugram_sector57",
-    "title": "Spacious 2BHK Floor in Sector 57, Gurugram",
-    "description": "Freshly painted 2 BHK floor near Huda City Centre with dedicated parking.",
-    "state": "Haryana",
-    "city": "Gurugram",
-    "locality": "Sector 57",
-    "pincode": "122003",
+    "id": "prop_delhi_01",
+    "ownerId": "usr_owner_delhi_01",
+    "title": "Authentic 2 BHK Apartment in Greater Kailash 1",
+    "description": "Genuine verified home with direct sunlight and covered parking.",
     "propertyType": "2bhk",
+    "rentPerMonth": 42000,
+    "securityDeposit": 84000,
+    "addressDetails": "E-42, Second Floor",
+    "locality": "Greater Kailash 1",
+    "city": "Delhi",
+    "state": "Delhi",
+    "pincode": "110048",
     "bedrooms": 2,
     "bathrooms": 2,
-    "areaSqFt": 1250,
-    "rentPerMonth": 32000,
-    "securityDeposit": 64000,
-    "maintenanceCharges": 2500,
-    "leaseTerms": "11 months standard lease.",
+    "areaSqFt": 1100,
     "furnishing": "semi_furnished",
     "tenantPreference": "family",
     "amenities": [
       "Power Backup",
-      "Lift",
-      "Dedicated Parking",
-      "Security Guard"
+      "Lift"
     ],
+    "availableFrom": "2026-11-01",
+    "isAvailable": true,
+    "verificationStatus": "authoritative_verified",
+    "submissionStatus": "approved",
+    "declaredAuthority": "sole_owner",
     "photos": [
-      "/uploads/photos/sample_living.jpg"
+      "/uploads/photos/living_room.webp"
     ],
     "documents": [
       {
-        "id": "doc_28a0deac-b95",
-        "documentType": "jamabandi",
-        "filename": "doc_28a0deac-b95.pdf",
-        "originalFilename": "jamabandi_title_deed.pdf",
-        "fileSize": 43,
+        "id": "doc_deed_01",
+        "documentType": "sale_deed",
+        "filename": "registered_sale_deed.pdf",
+        "fileSize": 1200000,
         "mimeType": "application/pdf",
-        "sha256Hash": "b39575bc1099e297f2870d7c174236becf3a2e0826b399a8725e3cb4580124aa",
-        "documentHash": "b39575bc1099e297f2870d7c174236becf3a2e0826b399a8725e3cb4580124aa",
-        "uploadedAt": "2026-10-27T11:26:29.886Z",
+        "documentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "uploadedAt": "2026-10-30T19:02:27.177Z",
         "status": "verified",
         "accessRole": "owner_and_verifier_only",
-        "reviewedBy": "usr_verifier_kapoor",
-        "reviewedAt": "2026-10-27T11:26:30.085Z"
+        "reviewedBy": "usr_verifier_official_03",
+        "reviewedAt": "2026-10-30T19:02:27.178Z"
       }
     ],
-    "submissionStatus": "approved",
-    "verificationStatus": "authoritative_verified",
-    "isAvailable": true,
-    "isAvailabilityConfirmed": true,
-    "ownerId": "usr_owner_sharma",
-    "availableFrom": "2026-11-01",
     "dataSource": "owner_submission",
-    "createdAt": "2026-10-27T11:26:29.886Z",
-    "updatedAt": "2026-10-27T11:26:30.085Z",
     "statusHistory": [
       {
-        "id": "st_bd625804",
+        "id": "st_11e73b87",
         "fromStatus": "submitted",
         "toStatus": "approved",
-        "changedBy": "usr_verifier_kapoor",
-        "changedAt": "2026-10-27T11:26:30.085Z",
-        "reason": "Title deed and physical inspection verified successfully."
+        "changedBy": "usr_verifier_official_03",
+        "changedAt": "2026-10-30T19:02:27.178Z",
+        "reason": "Completed verification checklist and document audit."
+      },
+      {
+        "id": "st_c3b17805",
+        "fromStatus": "approved",
+        "toStatus": "suspended",
+        "changedBy": "usr_verifier_official_03",
+        "changedAt": "2026-10-30T19:02:27.184Z",
+        "reason": "Suspended following investigation of fraud report: Verified fee violation. Listing suspended for review."
+      },
+      {
+        "id": "st_39bcedf3",
+        "fromStatus": "suspended",
+        "toStatus": "under_review",
+        "changedBy": "usr_owner_delhi_01",
+        "changedAt": "2026-10-30T19:02:27.188Z",
+        "reason": "Appeal filed by owner: Clarification: The offline discussion was an inquiry about advance rent, not an additional deposit. Lease agreement strictly reflects ₹42,000 rent and 2 months deposit."
+      },
+      {
+        "id": "st_aa6f85ac",
+        "fromStatus": "under_review",
+        "toStatus": "approved",
+        "changedBy": "usr_verifier_official_03",
+        "changedAt": "2026-10-30T19:02:27.190Z",
+        "reason": "Appeal accepted: Owner submitted signed lease agreement confirming compliance. Listing reinstated."
       }
     ],
-    "approvedAt": "2026-10-27T11:26:30.085Z",
-    "availabilityConfirmedAt": "2026-10-27T11:26:30.085Z"
+    "isAvailabilityConfirmed": true,
+    "availabilityConfirmedAt": "2026-10-30T19:02:27.190Z",
+    "createdAt": "2026-10-30T19:02:27.164Z",
+    "updatedAt": "2026-10-30T19:02:27.190Z",
+    "approvedAt": "2026-10-30T19:02:27.190Z",
+    "withdrawnAt": "2026-10-30T19:02:27.184Z",
+    "correctionNotes": "Suspension: Suspended following investigation of fraud report: Verified fee violation. Listing suspended for review."
   }
 ]

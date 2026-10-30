@@ -2,9 +2,10 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { db } from './db.js';
-import { createAndDispatchOtp, verifyOtpChallenge, parseIdentifier } from './otpService.js';
+import { createAndDispatchOtp, verifyOtpChallenge, parseIdentifier, normalizePhone, normalizeEmail } from './otpService.js';
 import { authenticateUser, requireAuth } from './middleware.js';
 import { storeUploadedFile } from './storageService.js';
+import { getGatewayDiagnostics, getMsg91Diagnostic } from './loadEnv.js';
 export const authRouter = Router();
 authRouter.use(authenticateUser);
 const MAX_PIN_FAILURES = 5;
@@ -46,11 +47,149 @@ function clearSessionCookie(res) {
     });
 }
 /**
- * 1. Request OTP for Registration or Contact Verification
+ * 1. Register New User & Initiate Verification OTP
  */
-authRouter.post('/request-otp', async (req, res) => {
+authRouter.post('/register', async (req, res) => {
     try {
-        const { identifier, type } = req.body;
+        const { fullName, phone, email, otpChannel = 'sms', termsAccepted, roles, preferredLanguage } = req.body;
+        // 1. Terms & Privacy Acceptance Check
+        if (!termsAccepted) {
+            return res.status(400).json({
+                success: false,
+                error: 'You must accept the Terms of Service and Privacy Policy to register an account.',
+            });
+        }
+        // 2. Full Name Validation
+        if (!fullName || typeof fullName !== 'string' || !fullName.trim()) {
+            return res.status(400).json({
+                success: false,
+                error: 'Full Name is required for account registration.',
+            });
+        }
+        // 3. Contact Methods Validation: At least one must be supplied
+        const cleanPhone = phone ? String(phone).trim() : '';
+        const cleanEmail = email ? String(email).trim() : '';
+        if (!cleanPhone && !cleanEmail) {
+            return res.status(400).json({
+                success: false,
+                error: 'Please provide at least one contact method: Indian mobile number or email address.',
+            });
+        }
+        // Strict validation if phone is provided
+        let phoneParsed = { isValid: false, tenDigit: '', international: '', msg91Format: '' };
+        if (cleanPhone) {
+            phoneParsed = normalizePhone(cleanPhone);
+            if (!phoneParsed.isValid) {
+                return res.status(400).json({
+                    success: false,
+                    error: phoneParsed.error || 'Please provide a valid 10-digit Indian mobile number.',
+                });
+            }
+        }
+        // Strict validation if email is provided
+        let emailParsed = { isValid: false, normalized: '' };
+        if (cleanEmail) {
+            emailParsed = normalizeEmail(cleanEmail);
+            if (!emailParsed.isValid) {
+                return res.status(400).json({
+                    success: false,
+                    error: emailParsed.error || 'Please provide a valid email address.',
+                });
+            }
+        }
+        // Mandatory channel-specific contact check
+        if (otpChannel === 'sms' || otpChannel === 'phone') {
+            if (!cleanPhone || !phoneParsed.isValid) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'An Indian mobile number is mandatory when selecting SMS as your OTP delivery channel.',
+                });
+            }
+        }
+        else if (otpChannel === 'email') {
+            if (!cleanEmail || !emailParsed.isValid || !emailParsed.normalized) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'An email address is mandatory when selecting Email as your OTP delivery channel.',
+                });
+            }
+        }
+        else {
+            return res.status(400).json({
+                success: false,
+                error: 'Please select a valid OTP delivery channel: sms or email.',
+            });
+        }
+        // 4. Unique Database Constraints (Prevent Duplicate Registration)
+        if (cleanPhone && phoneParsed.isValid) {
+            const existingByPhone = db.findUserByPhone(phoneParsed.tenDigit);
+            if (existingByPhone) {
+                return res.status(409).json({
+                    success: false,
+                    error: 'An account is already registered with this mobile number. Please sign in or use Forgot PIN.',
+                });
+            }
+        }
+        if (cleanEmail && emailParsed.isValid && emailParsed.normalized) {
+            const existingByEmail = db.findUserByEmail(emailParsed.normalized);
+            if (existingByEmail) {
+                return res.status(409).json({
+                    success: false,
+                    error: 'An account is already registered with this email address. Please sign in or use Forgot PIN.',
+                });
+            }
+        }
+        // 5. Assigned Roles Validation
+        const assignedRoles = [];
+        if (Array.isArray(roles)) {
+            for (const r of roles) {
+                if (ALLOWED_PUBLIC_ROLES.includes(r) && !assignedRoles.includes(r)) {
+                    assignedRoles.push(r);
+                }
+            }
+        }
+        if (assignedRoles.length === 0) {
+            assignedRoles.push('tenant');
+        }
+        // 6. Dispatch Real Verification OTP to the Chosen Channel
+        const destination = otpChannel === 'email' ? emailParsed.normalized : phoneParsed.tenDigit;
+        const result = await createAndDispatchOtp(destination, 'registration', {
+            fullName: fullName.trim(),
+            registeredPhone: cleanPhone && phoneParsed.isValid ? phoneParsed.tenDigit : undefined,
+            normalizedPhone: cleanPhone && phoneParsed.isValid ? phoneParsed.international : undefined,
+            registeredEmail: cleanEmail && emailParsed.isValid ? emailParsed.normalized : undefined,
+            normalizedEmail: cleanEmail && emailParsed.isValid ? emailParsed.normalized : undefined,
+            otpChannel: otpChannel === 'email' ? 'email' : 'sms',
+            roles: assignedRoles,
+            termsAccepted: true,
+            preferredLanguage: preferredLanguage || 'en',
+        });
+        if (!result.success || !result.providerAccepted) {
+            const statusCode = result.providerStatus === 'unconfigured' ? 503 : 502;
+            return res.status(statusCode).json(result);
+        }
+        return res.status(200).json({
+            ...result,
+            otpChannel,
+            registeredPhone: cleanPhone && phoneParsed.isValid ? db.maskIdentifier(phoneParsed.tenDigit) : undefined,
+            registeredEmail: cleanEmail && emailParsed.isValid ? db.maskIdentifier(emailParsed.normalized) : undefined,
+            destinationContact: destination,
+        });
+    }
+    catch (error) {
+        console.error('Error in /api/auth/register:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal server error processing registration request.',
+        });
+    }
+});
+/**
+ * 2. Request / Send OTP (Generic & Resend Endpoint)
+ */
+const handleSendOtp = async (req, res) => {
+    try {
+        const { identifier, type = 'registration' } = req.body;
         if (!identifier) {
             return res.status(400).json({
                 success: false,
@@ -59,33 +198,85 @@ authRouter.post('/request-otp', async (req, res) => {
         }
         const otpType = type === 'recovery' || type === 'contact_update' ? type : 'registration';
         const result = await createAndDispatchOtp(identifier, otpType);
-        if (!result.success) {
-            const statusCode = result.providerStatus === 'unconfigured' ? 503 : 400;
+        if (!result.success || !result.providerAccepted) {
+            const statusCode = result.providerStatus === 'unconfigured' ? 503 : 502;
             return res.status(statusCode).json(result);
         }
         return res.status(200).json(result);
     }
     catch (error) {
-        console.error('Error in /api/auth/request-otp:', error);
+        console.error('Error in /api/auth/send-otp:', error);
         return res.status(500).json({
             success: false,
             error: 'Internal server error processing verification request.',
         });
     }
+};
+authRouter.post('/send-otp', handleSendOtp);
+authRouter.post('/request-otp', handleSendOtp);
+/**
+ * Dedicated MSG91 Server-Side Configuration Diagnostic
+ * Reports strictly:
+ *   - MSG91_AUTH_KEY configured: true/false
+ *   - MSG91_TEMPLATE_ID configured: true/false
+ *   - Loaded environment file path
+ *   - Backend working directory
+ * NEVER leaks actual secret values.
+ */
+authRouter.get('/diagnostic/msg91', (req, res) => {
+    const diag = getMsg91Diagnostic();
+    return res.status(200).json(diag);
 });
 /**
- * 2. Verify OTP
+ * Safe Gateway Configuration Diagnostic
+ * Strictly reports boolean configuration state of environment variables (true/false).
+ * Never leaks actual keys, secrets, or credential tokens.
+ */
+authRouter.get('/diagnostic/providers', (req, res) => {
+    const diag = getGatewayDiagnostics();
+    return res.status(200).json({
+        success: true,
+        timestamp: new Date().toISOString(),
+        environment: {
+            activeEnvFile: diag.envFile.activePath,
+            loadedFiles: diag.envFile.loadedFiles,
+            nodeEnv: process.env.NODE_ENV || 'development',
+        },
+        smsGateway: {
+            provider: diag.sms.providerName,
+            configured: diag.sms.configured,
+            variables: {
+                MSG91_AUTH_KEY: diag.sms.variables.MSG91_AUTH_KEY,
+                MSG91_TEMPLATE_ID: diag.sms.variables.MSG91_TEMPLATE_ID,
+                MSG91_SENDER_ID: diag.sms.variables.MSG91_SENDER_ID,
+            },
+            missingCredentials: diag.sms.missingCredentials,
+        },
+        emailGateway: {
+            provider: diag.email.providerName,
+            configured: diag.email.configured,
+            variables: {
+                RESEND_API_KEY: diag.email.variables.RESEND_API_KEY,
+                EMAIL_FROM: diag.email.variables.EMAIL_FROM,
+            },
+            missingCredentials: diag.email.missingCredentials,
+        },
+    });
+});
+/**
+ * 3. Verify OTP
  */
 authRouter.post('/verify-otp', async (req, res) => {
     try {
-        const { identifier, otp } = req.body;
+        const { identifier, otp, type } = req.body;
         if (!identifier || !otp) {
             return res.status(400).json({
                 success: false,
                 error: 'Contact identifier and 6-digit OTP code are required.',
             });
         }
-        const result = await verifyOtpChallenge(identifier, String(otp));
+        const expectedType = type === 'recovery' || type === 'contact_update' ? type : undefined;
+        const result = await verifyOtpChallenge(identifier, String(otp), expectedType);
         if (!result.success) {
             return res.status(400).json(result);
         }
@@ -104,15 +295,15 @@ authRouter.post('/verify-otp', async (req, res) => {
     }
 });
 /**
- * 3. Set 4-digit PIN & Complete Registration / Profile
+ * 4. Create / Set 4-digit Security PIN & Complete Registration / Profile
  */
-authRouter.post('/set-pin', async (req, res) => {
+const handleCreateOrSetPin = async (req, res) => {
     try {
         const { identifier, verificationToken, pin, confirmPin, roles, fullName, preferredLanguage } = req.body;
-        if (!identifier || !verificationToken || !pin) {
+        if (!verificationToken || !pin) {
             return res.status(400).json({
                 success: false,
-                error: 'Contact identifier, verification token, and 4-digit security PIN are required.',
+                error: 'Verification token and 4-digit security PIN are required.',
             });
         }
         if (!/^\d{4}$/.test(String(pin))) {
@@ -127,43 +318,51 @@ authRouter.post('/set-pin', async (req, res) => {
                 error: 'PIN confirmation does not match the entered PIN.',
             });
         }
-        const parsed = parseIdentifier(identifier);
-        if (!parsed.isValid) {
-            return res.status(400).json({ success: false, error: parsed.error });
+        // Locate challenge by verificationToken (or by identifier)
+        let matchedChallenge;
+        let challengeKey;
+        if (identifier) {
+            const parsed = parseIdentifier(identifier);
+            if (parsed.isValid) {
+                const ch = db.otpChallenges.get(parsed.cleanIdentifier);
+                if (ch && ch.verificationToken === verificationToken) {
+                    matchedChallenge = ch;
+                    challengeKey = parsed.cleanIdentifier;
+                }
+            }
         }
-        const cleanIdentifier = parsed.cleanIdentifier;
-        const challenge = db.otpChallenges.get(cleanIdentifier);
-        if (!challenge ||
-            !challenge.verified ||
-            challenge.verificationToken !== verificationToken ||
-            (challenge.verificationTokenExpiresAt && Date.now() > challenge.verificationTokenExpiresAt)) {
+        if (!matchedChallenge) {
+            for (const [key, ch] of db.otpChallenges.entries()) {
+                if (ch.verificationToken === verificationToken) {
+                    matchedChallenge = ch;
+                    challengeKey = key;
+                    break;
+                }
+            }
+        }
+        if (!matchedChallenge ||
+            !matchedChallenge.verified ||
+            (matchedChallenge.verificationTokenExpiresAt && Date.now() > matchedChallenge.verificationTokenExpiresAt)) {
             return res.status(403).json({
                 success: false,
                 error: 'Invalid or expired verification token. Please verify your contact via OTP first.',
             });
         }
-        // Invalidate challenge immediately (strict replay protection)
-        db.otpChallenges.delete(cleanIdentifier);
-        // Hash the 4-digit PIN securely with bcrypt
+        // Invalidate challenge immediately (strict single-use replay protection)
+        if (challengeKey) {
+            db.otpChallenges.delete(challengeKey);
+            db.saveChallengesToDisk();
+        }
+        // Hash the 4-digit PIN securely with bcrypt (salt 10)
         const salt = await bcrypt.genSalt(10);
         const pinHash = await bcrypt.hash(String(pin), salt);
-        // Validate assigned roles
-        const assignedRoles = [];
-        if (Array.isArray(roles)) {
-            for (const r of roles) {
-                if (ALLOWED_PUBLIC_ROLES.includes(r) && !assignedRoles.includes(r)) {
-                    assignedRoles.push(r);
-                }
-            }
-        }
-        if (assignedRoles.length === 0) {
-            assignedRoles.push('tenant');
-        }
-        const activeRole = assignedRoles[0];
-        const isEmail = parsed.type === 'email';
-        let user = db.findUserByIdentifier(cleanIdentifier);
+        const metadata = matchedChallenge.metadata;
+        const isEmail = matchedChallenge.identifier.includes('@');
+        const lookupContact = metadata?.registeredPhone || metadata?.registeredEmail || matchedChallenge.identifier;
+        // Check if user already exists
+        let user = db.findUserByIdentifier(lookupContact);
         if (user) {
-            // User already exists (e.g. updating PIN)
+            // User exists (e.g. updating PIN or reset flow)
             user.pinHash = pinHash;
             user.pinChangedAt = new Date().toISOString();
             user.failedPinAttempts = 0;
@@ -172,30 +371,59 @@ authRouter.post('/set-pin', async (req, res) => {
             if (fullName && typeof fullName === 'string' && fullName.trim().length > 0) {
                 user.fullName = fullName.trim();
             }
-            db.logAuditEvent(user.id, 'pin_reset', 'Security PIN reset after OTP verification.', req.ip, req.get('user-agent'));
+            db.saveUsersToDisk();
+            db.logAuditEvent(user.id, 'pin_reset', 'Security PIN established after OTP verification.', req.ip, req.get('user-agent'));
         }
         else {
             // New User Registration
+            const assignedRoles = [];
+            const roleSource = metadata?.roles || roles;
+            if (Array.isArray(roleSource)) {
+                for (const r of roleSource) {
+                    if (ALLOWED_PUBLIC_ROLES.includes(r) && !assignedRoles.includes(r)) {
+                        assignedRoles.push(r);
+                    }
+                }
+            }
+            if (assignedRoles.length === 0) {
+                assignedRoles.push('tenant');
+            }
+            const activeRole = assignedRoles[0];
+            const registeredPhone = metadata?.registeredPhone || (!isEmail ? matchedChallenge.identifier : undefined);
+            const normalizedPhone = metadata?.normalizedPhone || (registeredPhone ? `+91${registeredPhone}` : undefined);
+            const registeredEmail = metadata?.registeredEmail || (isEmail ? matchedChallenge.identifier : undefined);
+            const normalizedEmail = metadata?.normalizedEmail || registeredEmail?.toLowerCase();
+            // STRICT VERIFICATION STATUS DIRECTIVE:
+            // If user registers using email OTP: email is verified, mobile is unverified until SMS verification.
+            // If user registers using SMS OTP: mobile is verified, email is unverified until email verification.
+            const isSmsChannel = metadata?.otpChannel === 'sms' || (!metadata?.otpChannel && !isEmail);
+            const isEmailChannel = metadata?.otpChannel === 'email' || (!metadata?.otpChannel && isEmail);
             user = {
                 id: `usr_${crypto.randomUUID().slice(0, 8)}`,
-                identifier: cleanIdentifier,
-                phone: !isEmail ? cleanIdentifier : undefined,
-                email: isEmail ? cleanIdentifier : undefined,
+                identifier: registeredPhone || registeredEmail || matchedChallenge.identifier,
+                phone: registeredPhone,
+                normalizedPhone,
+                email: registeredEmail,
+                normalizedEmail,
                 role: activeRole,
                 activeRole: activeRole,
                 roles: assignedRoles,
-                fullName: fullName && typeof fullName === 'string' && fullName.trim().length > 0 ? fullName.trim() : undefined,
-                preferredLanguage: preferredLanguage || 'en',
+                fullName: metadata?.fullName || (fullName && typeof fullName === 'string' && fullName.trim() ? fullName.trim() : undefined),
+                preferredLanguage: metadata?.preferredLanguage || preferredLanguage || 'en',
                 notificationPreferences: {
                     emailAlerts: true,
                     smsAlerts: true,
                     propertyInquiries: true,
                     securityAlerts: true,
+                    savedSearchAlerts: true,
                 },
                 pinHash,
-                isPhoneVerified: !isEmail,
-                isEmailVerified: isEmail,
+                isPhoneVerified: isSmsChannel,
+                isEmailVerified: isEmailChannel,
                 isIdentityVerified: false,
+                accountStatus: 'active',
+                termsAcceptedAt: metadata?.termsAccepted ? new Date().toISOString() : undefined,
+                otpPreference: metadata?.otpChannel || (isEmail ? 'email' : 'sms'),
                 failedPinAttempts: 0,
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
@@ -203,7 +431,8 @@ authRouter.post('/set-pin', async (req, res) => {
                 pinChangedAt: new Date().toISOString(),
             };
             db.users.set(user.id, user);
-            db.logAuditEvent(user.id, 'account_registered', `Account registered with primary role: ${activeRole}.`, req.ip, req.get('user-agent'));
+            db.saveUsersToDisk();
+            db.logAuditEvent(user.id, 'account_registered', `Account registered with primary role: ${activeRole}. Phone verified: ${user.isPhoneVerified}, Email verified: ${user.isEmailVerified}.`, req.ip, req.get('user-agent'));
         }
         // Create authenticated session
         const sessionToken = crypto.randomBytes(32).toString('hex');
@@ -215,6 +444,7 @@ authRouter.post('/set-pin', async (req, res) => {
             createdAt: Date.now(),
             expiresAt: Date.now() + SESSION_TTL_MS,
         });
+        db.saveSessionsToDisk();
         setSessionCookie(res, sessionToken);
         return res.status(201).json({
             success: true,
@@ -224,13 +454,15 @@ authRouter.post('/set-pin', async (req, res) => {
         });
     }
     catch (error) {
-        console.error('Error in /api/auth/set-pin:', error);
+        console.error('Error in /api/auth/create-pin:', error);
         return res.status(500).json({
             success: false,
             error: 'Internal server error establishing security PIN.',
         });
     }
-});
+};
+authRouter.post('/create-pin', handleCreateOrSetPin);
+authRouter.post('/set-pin', handleCreateOrSetPin);
 /**
  * 4. Login with Verified Contact and 4-Digit PIN
  */
@@ -270,6 +502,19 @@ authRouter.post('/login', async (req, res) => {
                 error: 'Invalid contact identifier or PIN. If not registered, please verify via OTP first.',
             });
         }
+        // Verify contact method was verified before allowing as login identity
+        if (parsed.type === 'email' && !user.isEmailVerified && !user.email_verified) {
+            return res.status(401).json({
+                success: false,
+                error: 'This email address is not verified. Please sign in with your verified mobile number or verify this email first.',
+            });
+        }
+        if (parsed.type === 'phone' && !user.isPhoneVerified && !user.mobile_verified) {
+            return res.status(401).json({
+                success: false,
+                error: 'This mobile number is not verified. Please sign in with your verified email address or verify this phone first.',
+            });
+        }
         // Check account deactivation
         if (user.isDeactivated) {
             return res.status(403).json({
@@ -294,12 +539,14 @@ authRouter.post('/login', async (req, res) => {
             await new Promise((r) => setTimeout(r, Math.min(user.failedPinAttempts * 400, 2000)));
             if (attemptsRemaining <= 0) {
                 user.lockoutUntil = Date.now() + LOCKOUT_DURATION_MS;
+                db.saveUsersToDisk();
                 db.logAuditEvent(user.id, 'account_locked', 'Account locked for 15 minutes due to 5 failed PIN attempts.', req.ip, req.get('user-agent'));
                 return res.status(429).json({
                     success: false,
                     error: 'Account locked for 15 minutes due to multiple incorrect PIN entries. Use Forgot PIN to recover with OTP.',
                 });
             }
+            db.saveUsersToDisk();
             db.logAuditEvent(user.id, 'login_failed', `Incorrect PIN entered (${user.failedPinAttempts}/${MAX_PIN_FAILURES}).`, req.ip, req.get('user-agent'));
             return res.status(401).json({
                 success: false,
@@ -311,6 +558,7 @@ authRouter.post('/login', async (req, res) => {
         user.failedPinAttempts = 0;
         user.lockoutUntil = undefined;
         user.lastLoginAt = new Date().toISOString();
+        db.saveUsersToDisk();
         const sessionToken = crypto.randomBytes(32).toString('hex');
         db.sessions.set(sessionToken, {
             token: sessionToken,
@@ -320,6 +568,7 @@ authRouter.post('/login', async (req, res) => {
             createdAt: Date.now(),
             expiresAt: Date.now() + SESSION_TTL_MS,
         });
+        db.saveSessionsToDisk();
         setSessionCookie(res, sessionToken);
         db.logAuditEvent(user.id, 'login_success', 'Successful PIN login.', req.ip, req.get('user-agent'));
         return res.status(200).json({
@@ -354,18 +603,27 @@ authRouter.post('/forgot-pin', async (req, res) => {
         }
         const cleanIdentifier = parsed.cleanIdentifier;
         const user = db.findUserByIdentifier(cleanIdentifier);
-        // If user not found, return generic success message to prevent contact enumeration
+        // If user not found, return honest error to prevent false-success confusion
         if (!user) {
-            await new Promise((r) => setTimeout(r, 500));
-            return res.status(200).json({
-                success: true,
-                message: `If an account is associated with ${db.maskIdentifier(cleanIdentifier)}, a verification code has been dispatched.`,
+            return res.status(404).json({
+                success: false,
+                deliveryStatus: 'provider_rejected',
+                providerAccepted: false,
+                error: `No registered account found for ${db.maskIdentifier(cleanIdentifier)}. Please register first.`,
                 maskedRecipient: db.maskIdentifier(cleanIdentifier),
             });
         }
-        const result = await createAndDispatchOtp(cleanIdentifier, 'recovery', { userId: user.id });
-        if (!result.success) {
-            const statusCode = result.providerStatus === 'unconfigured' ? 503 : 400;
+        // Determine eligible verified contact destination for recovery
+        let targetContact = cleanIdentifier;
+        if (parsed.type === 'phone' && !user.isPhoneVerified && user.isEmailVerified && user.email) {
+            targetContact = user.email;
+        }
+        else if (parsed.type === 'email' && !user.isEmailVerified && user.isPhoneVerified && user.phone) {
+            targetContact = user.phone;
+        }
+        const result = await createAndDispatchOtp(targetContact, 'recovery', { userId: user.id });
+        if (!result.success || !result.providerAccepted) {
+            const statusCode = result.providerStatus === 'unconfigured' ? 503 : 502;
             return res.status(statusCode).json(result);
         }
         db.logAuditEvent(user.id, 'pin_recovery_requested', 'PIN recovery OTP requested.', req.ip, req.get('user-agent'));
@@ -432,6 +690,7 @@ authRouter.post('/reset-pin', async (req, res) => {
         user.failedPinAttempts = 0;
         user.lockoutUntil = undefined;
         user.updatedAt = new Date().toISOString();
+        db.saveUsersToDisk();
         // Terminate all existing sessions on password/PIN reset (Security Best Practice)
         db.invalidateUserSessions(user.id);
         // Establish new session for current device
@@ -444,6 +703,7 @@ authRouter.post('/reset-pin', async (req, res) => {
             createdAt: Date.now(),
             expiresAt: Date.now() + SESSION_TTL_MS,
         });
+        db.saveSessionsToDisk();
         setSessionCookie(res, sessionToken);
         db.logAuditEvent(user.id, 'pin_reset', 'PIN successfully reset. Previous sessions invalidated.', req.ip, req.get('user-agent'));
         return res.status(200).json({
@@ -513,12 +773,23 @@ authRouter.post('/change-pin', requireAuth, async (req, res) => {
     }
 });
 /**
- * 8. Get Authenticated User Profile
+ * 8. Get Authenticated User Profile & Refresh Persistent Session
  */
 authRouter.get('/me', requireAuth, (req, res) => {
+    // Session refresh & persistent cookie rotation
+    if (req.sessionToken) {
+        const session = db.sessions.get(req.sessionToken);
+        if (session) {
+            session.expiresAt = Date.now() + SESSION_TTL_MS;
+            db.sessions.set(req.sessionToken, session);
+            db.saveSessionsToDisk();
+            setSessionCookie(res, req.sessionToken);
+        }
+    }
     return res.status(200).json({
         success: true,
         user: db.toPublicProfile(req.user),
+        sessionToken: req.sessionToken,
     });
 });
 /**
@@ -676,8 +947,8 @@ authRouter.post('/request-contact-change', requireAuth, async (req, res) => {
             userId: user.id,
             newContact: cleanContact,
         });
-        if (!result.success) {
-            const statusCode = result.providerStatus === 'unconfigured' ? 503 : 400;
+        if (!result.success || !result.providerAccepted) {
+            const statusCode = result.providerStatus === 'unconfigured' ? 503 : 502;
             return res.status(statusCode).json(result);
         }
         db.logAuditEvent(user.id, 'contact_update_requested', `Initiated verification code for new contact: ${db.maskIdentifier(cleanContact)}.`, req.ip, req.get('user-agent'));
@@ -799,6 +1070,7 @@ authRouter.post('/logout', (req, res) => {
             db.logAuditEvent(req.user.id, 'logout', 'Signed out from session.', req.ip, req.get('user-agent'));
         }
         db.sessions.delete(req.sessionToken);
+        db.saveSessionsToDisk();
     }
     clearSessionCookie(res);
     return res.status(200).json({ success: true, message: 'Logged out successfully.' });

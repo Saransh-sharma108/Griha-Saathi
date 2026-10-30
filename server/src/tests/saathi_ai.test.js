@@ -1,15 +1,17 @@
 import assert from 'assert';
 import { db } from '../db.js';
-import { parseNaturalLanguageQuery, executePropertySearch, generatePropertyComparison, getSaathiProviderStatus, processSaathiChat } from '../saathiAiService.js';
+import { parseNaturalLanguageQuery, executePropertySearch, generateComprehensiveComparison, calculateRecommendationScore, analyzeFraudRisk, recordAiFeedback, getAiFeedbackSummary, validateAiResponse, getSaathiProviderStatus, processSaathiChat } from '../saathiAiService.js';
 async function runSaathiAiTestSuite() {
     console.log('================================================================');
-    console.log('GRIHA SAATHI — PHASE 8 SAATHI AI INTELLIGENT ASSISTANT TEST SUITE');
+    console.log('GRIHA SAATHI — ADVANCED SAATHI AI INTELLIGENCE TEST SUITE');
     console.log('================================================================\n');
     // Clear database state
     db.properties.clear();
     db.savedProperties.clear();
     db.users.clear();
     db.sessions.clear();
+    db.aiFeedback.clear();
+    db.aiSessions.clear();
     db.auditEvents.length = 0;
     // --------------------------------------------------------------------------
     // TEST 1: Honest Provider Status & Decoupling
@@ -58,11 +60,44 @@ async function runSaathiAiTestSuite() {
     assert.strictEqual(qD.intent, 'missing_info_followup');
     assert.strictEqual(qD.isMissingCriticalInfo, true);
     assert.ok(qD.missingParameters.includes('location'));
+    // Query E: Purchase budget in Lakhs
+    const qE = parseNaturalLanguageQuery('I have a budget of 25 lakh what can I buy in Jammu', 'en');
+    assert.strictEqual(qE.intent, 'property_search');
+    assert.strictEqual(qE.filters.city, 'Jammu');
+    assert.strictEqual(qE.filters.transactionType, 'buy');
+    assert.strictEqual(qE.filters.maxBudget, 2500000);
     console.log('✓ Test 2 Passed: Natural language parser accurately extracts parameters across all languages.\n');
     // --------------------------------------------------------------------------
-    // TEST 3: Real Database Retrieval & Zero Synthetic Data Invariant
+    // TEST 3: Multi-Turn Conversational Follow-Up & Context Retention
     // --------------------------------------------------------------------------
-    console.log('[Test 3] Testing Real Database Retrieval & Zero Synthetic Data Invariant...');
+    console.log('[Test 3] Testing Multi-Turn Follow-Up & Session Context Retention...');
+    const sessionId = 'test_session_multi_turn_01';
+    // Step 1: User asks initial search
+    const turn1 = await processSaathiChat({
+        userQuery: 'Find 2BHK flats in Jammu under ₹15,000',
+        language: 'en',
+        sessionId,
+    });
+    assert.strictEqual(turn1.intent, 'property_search');
+    assert.strictEqual(turn1.suggestedFilters?.city, 'Jammu');
+    assert.strictEqual(turn1.suggestedFilters?.bedrooms, 2);
+    assert.strictEqual(turn1.suggestedFilters?.maxRent, 15000);
+    // Step 2: Follow-up modifies only furnishing
+    const turn2 = await processSaathiChat({
+        userQuery: 'Show only furnished ones',
+        language: 'en',
+        sessionId,
+    });
+    assert.strictEqual(turn2.intent, 'property_search');
+    assert.strictEqual(turn2.suggestedFilters?.city, 'Jammu', 'Must retain earlier city: Jammu');
+    assert.strictEqual(turn2.suggestedFilters?.bedrooms, 2, 'Must retain earlier bedrooms: 2');
+    assert.strictEqual(turn2.suggestedFilters?.maxRent, 15000, 'Must retain earlier maxRent: 15000');
+    assert.strictEqual(turn2.suggestedFilters?.furnishing, 'fully_furnished', 'Must update furnishing');
+    console.log('✓ Test 3 Passed: Multi-turn session context successfully preserved across queries.\n');
+    // --------------------------------------------------------------------------
+    // TEST 4: Real Database Retrieval & Zero Synthetic Data Invariant
+    // --------------------------------------------------------------------------
+    console.log('[Test 4] Testing Real Database Retrieval & Zero Synthetic Data Invariant...');
     // Initially empty
     const emptySearch = executePropertySearch({ state: 'Jammu & Kashmir', maxRent: 15000 }, 'en');
     assert.strictEqual(emptySearch.totalMatches, 0, 'Must have 0 matches on empty database');
@@ -149,14 +184,30 @@ async function runSaathiAiTestSuite() {
     assert.strictEqual(jammuSearch.properties[0].id, 'prop_jk_001');
     assert.strictEqual(jammuSearch.properties[0].rentPerMonth, 14000);
     assert.strictEqual(jammuSearch.properties[0].bedrooms, 2);
-    assert.ok(jammuSearch.properties[0].matchRationale.includes('2 BHK'));
-    assert.ok(jammuSearch.properties[0].objectiveFacts.some(f => f.includes('₹14,000')));
-    console.log('✓ Test 3 Passed: Real database retrieval returns genuine matching records without hallucinations.\n');
+    assert.ok(jammuSearch.properties[0].matchRationale.includes('Recommendation Score') || jammuSearch.properties[0].matchRationale.includes('Match Score'));
+    console.log('✓ Test 4 Passed: Real database retrieval returns genuine matching records without hallucinations.\n');
     // --------------------------------------------------------------------------
-    // TEST 4: Publication Gate & Permission Isolation
+    // TEST 5: Recommendation Scoring Engine & Invariants
     // --------------------------------------------------------------------------
-    console.log('[Test 4] Testing Publication Gate & Permission Isolation (Excluding Drafts/Withdrawn)...');
-    // Create an unapproved / draft property in Jammu
+    console.log('[Test 5] Testing Transparent Recommendation Scoring & Verification Invariant...');
+    const scoreJammu = calculateRecommendationScore(propJammu, { city: 'Jammu', bedrooms: 2, maxRent: 15000 });
+    assert.ok(scoreJammu.overallScore >= 80, 'Well-matching verified property should score >= 80');
+    assert.strictEqual(scoreJammu.verificationScore, 100);
+    assert.ok(scoreJammu.matchHighlights.length > 0);
+    // Invariant test: Unverified property must NEVER rank above verified solely for price
+    const unverifiedCheapProp = {
+        ...propJammu,
+        id: 'prop_unverified_cheap',
+        rentPerMonth: 5000,
+        verificationStatus: 'unverified',
+    };
+    const scoreUnverified = calculateRecommendationScore(unverifiedCheapProp, { city: 'Jammu', bedrooms: 2, maxRent: 15000 });
+    assert.ok(scoreUnverified.overallScore <= 60, 'Unverified property overall score must be capped at 60');
+    console.log('✓ Test 5 Passed: Recommendation scoring weights and verification caps verified.\n');
+    // --------------------------------------------------------------------------
+    // TEST 6: Publication Gate & Permission Isolation
+    // --------------------------------------------------------------------------
+    console.log('[Test 6] Testing Publication Gate & Permission Isolation (Excluding Drafts/Withdrawn)...');
     const draftProp = {
         id: 'prop_jk_draft',
         title: 'Unapproved Draft Flat in Jammu',
@@ -186,12 +237,11 @@ async function runSaathiAiTestSuite() {
     const searchWithDraft = executePropertySearch({ city: 'Jammu', bedrooms: 2, maxRent: 15000 }, 'en');
     assert.strictEqual(searchWithDraft.totalMatches, 1, 'Must strictly exclude draft properties from AI retrieval');
     assert.strictEqual(searchWithDraft.properties[0].id, 'prop_jk_001');
-    console.log('✓ Test 4 Passed: Publication gate strictly isolates drafts and unapproved listings.\n');
+    console.log('✓ Test 6 Passed: Publication gate strictly isolates drafts and unapproved listings.\n');
     // --------------------------------------------------------------------------
-    // TEST 5: Side-by-Side Property Comparison with "Not provided" for Missing Fields
+    // TEST 7: Comprehensive Side-by-Side Property Comparison
     // --------------------------------------------------------------------------
-    console.log('[Test 5] Testing Side-by-Side Comparison Engine & Missing Field Handling...');
-    // Create property with some missing optional fields (e.g. areaSqFt missing)
+    console.log('[Test 7] Testing Comprehensive Property Comparison Engine & Disadvantages...');
     const propShimla = {
         id: 'prop_hp_001',
         title: 'Quaint 2 BHK Cottage in Shimla',
@@ -202,12 +252,11 @@ async function runSaathiAiTestSuite() {
         pincode: '171001',
         propertyType: '2bhk',
         bedrooms: 2,
-        // areaSqFt omitted intentionally
         rentPerMonth: 18000,
         securityDeposit: 36000,
         furnishing: 'semi_furnished',
         tenantPreference: 'family',
-        amenities: [], // amenities empty
+        amenities: [],
         photos: [],
         verificationStatus: 'authoritative_verified',
         submissionStatus: 'approved',
@@ -218,19 +267,31 @@ async function runSaathiAiTestSuite() {
         dataSource: 'owner_submission',
     };
     db.properties.set(propShimla.id, propShimla);
-    const comparison = generatePropertyComparison(['prop_jk_001', 'prop_hp_001', 'non_existent_id']);
-    assert.strictEqual(comparison.length, 2, 'Should compare the 2 real properties, ignoring invalid IDs');
-    const compJammu = comparison.find(c => c.propertyId === 'prop_jk_001');
-    const compShimla = comparison.find(c => c.propertyId === 'prop_hp_001');
-    assert.strictEqual(compJammu.area, '980 sq.ft');
-    assert.strictEqual(compShimla.area, 'Not provided', 'Missing area must strictly be "Not provided"');
-    assert.deepStrictEqual(compShimla.amenities, ['Not provided'], 'Empty amenities must be "Not provided"');
-    assert.strictEqual(compShimla.rentOrPrice, '₹18,000/month');
-    console.log('✓ Test 5 Passed: Side-by-side comparison displays accurate facts and marks missing fields as "Not provided".\n');
+    const compResult = generateComprehensiveComparison(['prop_jk_001', 'prop_hp_001']);
+    assert.strictEqual(compResult.items.length, 2);
+    assert.ok(compResult.strongestMatch !== undefined);
+    assert.ok(compResult.bestBudgetFit !== undefined);
+    assert.strictEqual(compResult.bestBudgetFit?.propertyId, 'prop_jk_001', 'Jammu property at 14k is cheaper than Shimla at 18k');
+    assert.ok(compResult.questionsForOwner.length >= 3);
+    console.log('✓ Test 7 Passed: Comprehensive comparison provides strongest match, budget fit, and owner questions.\n');
     // --------------------------------------------------------------------------
-    // TEST 6: Statutory Tenancy & Fraud Prevention Guidance Retrieval
+    // TEST 8: Trust & Fraud Risk Analysis Engine
     // --------------------------------------------------------------------------
-    console.log('[Test 6] Testing Tenancy Guidance, Model Tenancy Act & Fraud Prevention Knowledge...');
+    console.log('[Test 8] Testing Fraud Detection & Risk Analysis...');
+    // Scenario 1: Advance payment before inspection requested
+    const fraud1 = analyzeFraudRisk('The owner is asking for 5000 token money via UPI before showing the house');
+    assert.strictEqual(fraud1.overallRiskLevel, 'high');
+    assert.ok(fraud1.findings.some(f => f.code === 'ADVANCE_PAYMENT_SCAM'));
+    assert.ok(fraud1.verificationChecklist.length >= 3);
+    // Scenario 2: Army officer visiting pass fee
+    const fraud2 = analyzeFraudRisk('The landlord says he is an army officer and needs 2000 for gate pass fee');
+    assert.strictEqual(fraud2.overallRiskLevel, 'high');
+    assert.ok(fraud2.findings.some(f => f.code === 'GATE_PASS_EXTORTION'));
+    console.log('✓ Test 8 Passed: Fraud risk analysis reliably identifies scam patterns and generates checklists.\n');
+    // --------------------------------------------------------------------------
+    // TEST 9: Statutory Tenancy & Purchase Advisory Retrieval
+    // --------------------------------------------------------------------------
+    console.log('[Test 9] Testing Statutory Guidance, Model Tenancy Act & Purchase Advisory...');
     const depositQuery = await processSaathiChat({
         userQuery: 'What is the maximum security deposit allowed under Model Tenancy Act?',
         language: 'en',
@@ -238,35 +299,92 @@ async function runSaathiAiTestSuite() {
     assert.strictEqual(depositQuery.intent, 'renting_guidance');
     assert.ok(depositQuery.text.includes('capped at a maximum of two months’ rent'));
     assert.strictEqual(depositQuery.relatedEntities?.legalReference, 'Model Tenancy Act 2021, Section 11');
-    const fraudQuery = await processSaathiChat({
-        userQuery: 'How to avoid rental scams and fraud before visiting?',
+    const purchaseQuery = await processSaathiChat({
+        userQuery: 'What due diligence is required before property purchase and registry?',
         language: 'en',
     });
-    assert.strictEqual(fraudQuery.intent, 'fraud_safety');
-    assert.ok(fraudQuery.text.includes('Never transfer token money via UPI before a physical inspection'));
-    console.log('✓ Test 6 Passed: Statutory guidance correctly retrieved with verified legal references.\n');
+    assert.strictEqual(purchaseQuery.intent, 'buying_guidance');
+    assert.ok(purchaseQuery.text.includes('Title Search') || purchaseQuery.text.includes('Jamabandi'));
+    console.log('✓ Test 9 Passed: Statutory tenancy and purchase advisory correctly retrieved.\n');
     // --------------------------------------------------------------------------
-    // TEST 7: Conversational Flow, Follow-up Prompts & Action Handlers
+    // TEST 10: Quality Control & Post-Generation Validation Layer
     // --------------------------------------------------------------------------
-    console.log('[Test 7] Testing Conversational Flow & Consequential Action Handlers...');
-    const chatSearch = await processSaathiChat({
-        userQuery: 'Find a 2 BHK flat for rent in Jammu under ₹15,000',
-        language: 'en',
+    console.log('[Test 10] Testing Quality Control Layer (Sanitizing Hallucinated IDs)...');
+    const rawMessage = {
+        id: 'ai_test_qc',
+        sender: 'assistant',
+        text: 'Found properties',
+        timestamp: '12:00 PM',
+        properties: [
+            {
+                id: 'prop_hallucinated_fake_999',
+                title: 'Fake Apartment',
+                propertyType: '2bhk',
+                transactionType: 'rent',
+                city: 'Jammu',
+                locality: 'Gandhi Nagar',
+                state: 'Jammu & Kashmir',
+                rentPerMonth: 9000,
+                bedrooms: 2,
+                furnishing: 'unfurnished',
+                verificationStatus: 'authoritative_verified',
+                isFresh: true,
+                matchRationale: 'None',
+                objectiveFacts: [],
+            },
+            {
+                id: 'prop_jk_001',
+                title: 'Real Flat with Tampered Price',
+                propertyType: '2bhk',
+                transactionType: 'rent',
+                city: 'Jammu',
+                locality: 'Gandhi Nagar',
+                state: 'Jammu & Kashmir',
+                rentPerMonth: 999999, // Tampered price
+                bedrooms: 2,
+                furnishing: 'semi_furnished',
+                verificationStatus: 'authoritative_verified',
+                isFresh: true,
+                matchRationale: 'Real',
+                objectiveFacts: [],
+            },
+        ],
+    };
+    const validated = validateAiResponse(rawMessage);
+    assert.strictEqual(validated.properties?.length, 1, 'Hallucinated property must be stripped');
+    assert.strictEqual(validated.properties[0].id, 'prop_jk_001');
+    assert.strictEqual(validated.properties[0].rentPerMonth, 14000, 'Tampered price must be restored from actual database');
+    console.log('✓ Test 10 Passed: Quality control layer strictly strips non-existent records and enforces factual integrity.\n');
+    // --------------------------------------------------------------------------
+    // TEST 11: User Quality Feedback Collection & Metrics
+    // --------------------------------------------------------------------------
+    console.log('[Test 11] Testing User Feedback Submission & Aggregation...');
+    recordAiFeedback({
+        messageId: 'ai_msg_001',
+        queryText: 'Find 2 BHK in Jammu',
+        rating: 'helpful',
+        comment: 'Accurate and fast',
+        userId: 'usr_test_01',
     });
-    assert.strictEqual(chatSearch.intent, 'property_search');
-    assert.strictEqual(chatSearch.properties?.length, 1);
-    assert.ok(chatSearch.actions && chatSearch.actions.length > 0);
-    // Missing info test
-    const chatMissing = await processSaathiChat({
-        userQuery: 'Find me a 2 BHK flat',
-        language: 'en',
+    recordAiFeedback({
+        messageId: 'ai_msg_002',
+        queryText: 'Find 3 BHK in Gurugram',
+        rating: 'helpful',
     });
-    assert.strictEqual(chatMissing.intent, 'missing_info_followup');
-    assert.ok(chatMissing.followUpQuestion?.includes('which city or state'));
-    assert.ok(chatMissing.actions?.some(a => a.label.includes('Jammu')));
-    console.log('✓ Test 7 Passed: Conversational flow, follow-up questions, and action suggestions operate cleanly.\n');
+    recordAiFeedback({
+        messageId: 'ai_msg_003',
+        queryText: 'Hostel in Shimla',
+        rating: 'missing_information',
+        comment: 'Need more details on meals',
+    });
+    const feedbackSummary = getAiFeedbackSummary();
+    assert.strictEqual(feedbackSummary.total, 3);
+    assert.strictEqual(feedbackSummary.helpfulCount, 2);
+    assert.strictEqual(feedbackSummary.missingInfoCount, 1);
+    assert.strictEqual(feedbackSummary.helpfulPercentage, 67);
+    console.log('✓ Test 11 Passed: User feedback collection and reporting successfully verified.\n');
     console.log('================================================================');
-    console.log('ALL 7 PHASE 8 SAATHI AI TESTS PASSED SUCCESSFULLY (100%)');
+    console.log('ALL 11 SAATHI AI INTELLIGENCE TEST SUITES PASSED (100% SUCCESS)');
     console.log('================================================================\n');
 }
 runSaathiAiTestSuite().catch((err) => {

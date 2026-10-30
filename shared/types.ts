@@ -368,6 +368,17 @@ export interface Property {
   demoParking?: boolean;
   demoPetFriendly?: boolean;
   demoSuitableFor?: string[];
+  // Extended Five-Region & Inventory Classification
+  district?: string;
+  propertyCategory?: 'residential' | 'commercial' | 'plots_land' | 'hospitality';
+  propertySubtype?: string;
+  listingIntent?: 'rent' | 'sale';
+  salePrice?: number;
+  balconies?: number;
+  carpetAreaSqFt?: number;
+  builtUpAreaSqFt?: number;
+  parking?: string;
+  petPolicy?: 'allowed' | 'not_allowed' | 'case_by_case';
   // Provenance & Real-World Integration Contracts (Directives 4, 5 & 6)
   provider?: string;
   providerListingId?: string;
@@ -534,7 +545,9 @@ export interface UserProfile {
   id: string;
   identifier: string; // Masked on frontend
   phone?: string;     // Masked phone if available
+  normalizedPhone?: string; // International format e.g. +91 98******10
   email?: string;     // Masked email if available
+  normalizedEmail?: string;
   role: UserRole;     // Backward-compatible alias for activeRole
   activeRole: UserRole;
   roles: UserRole[];  // Multi-roles held by this account
@@ -546,10 +559,32 @@ export interface UserProfile {
   isEmailVerified: boolean;
   isIdentityVerified: boolean;
   isDeactivated?: boolean;
+  accountStatus?: 'active' | 'deactivated' | 'suspended';
+  termsAcceptedAt?: string;
+  otpPreference?: 'sms' | 'email';
   createdAt: string;
   updatedAt?: string;
   lastLoginAt?: string;
   pinChangedAt?: string;
+  accountType?: string;
+}
+
+export interface OwnerProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  phone?: string;
+  initials: string;
+  accountType: string;
+  role: UserRole;
+  activeRole: UserRole;
+  roles: UserRole[];
+  preferredLanguage: SupportedLanguage;
+  notificationPreferences: NotificationPreferences;
+  accountStatus: 'active' | 'deactivated' | 'suspended';
+  isIdentityVerified: boolean;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface SavedSearchFilters {
@@ -616,11 +651,17 @@ export interface ConnectionRequest {
   ownerId: string; // Target listing owner / representative
   status: ConnectionStatus;
   tenantNote?: string;
+  initialMessage?: string;
   declinedReason?: string;
   cancelledReason?: string;
   blockedBy?: string;
   createdAt: string;
   updatedAt: string;
+  isDemo?: boolean;
+  onlineStatus?: 'online' | 'offline';
+  lastActiveText?: string;
+  avatarBg?: string;
+  avatarInitials?: string;
   propertyPreview?: {
     id: string;
     title: string;
@@ -637,6 +678,11 @@ export interface ConnectionRequest {
     identifier: string;
     role: UserRole;
     isPhoneVerified: boolean;
+    isDemo?: boolean;
+    onlineStatus?: 'online' | 'offline';
+    lastActiveText?: string;
+    avatarBg?: string;
+    avatarInitials?: string;
   };
   recipientProfile?: {
     id: string;
@@ -644,6 +690,11 @@ export interface ConnectionRequest {
     identifier: string;
     role: UserRole;
     isPhoneVerified: boolean;
+    isDemo?: boolean;
+    onlineStatus?: 'online' | 'offline';
+    lastActiveText?: string;
+    avatarBg?: string;
+    avatarInitials?: string;
   };
   lastMessage?: ConversationMessage;
   unreadCount?: number;
@@ -660,6 +711,7 @@ export interface ConversationMessage {
   readAt?: string;
   isReported?: boolean;
   reportReason?: string;
+  isDemo?: boolean;
 }
 
 export type PropertyVisitStatus = 'pending' | 'confirmed' | 'rescheduled' | 'completed' | 'cancelled';
@@ -750,30 +802,64 @@ export interface SaathiSearchFilters {
   state?: TargetState | 'all';
   city?: string;
   locality?: string;
-  propertyType?: PropertyType | 'all';
+  propertyType?: PropertyType | string | 'all';
+  propertyCategory?: string;
   transactionType?: 'rent' | 'buy' | 'any';
+  tenure?: 'rent' | 'buy' | 'short_term' | 'long_term' | 'any';
   minRent?: number;
   maxRent?: number;
+  minBudget?: number;
+  maxBudget?: number;
   bedrooms?: number;
   bathrooms?: number;
   furnishing?: FurnishingStatus | 'any';
+  familyOrBachelor?: 'family' | 'bachelors' | 'students' | 'any';
+  parkingRequired?: boolean;
+  securityRequired?: boolean;
+  petFriendly?: boolean;
   amenities?: string[];
   onlyVerified?: boolean;
+}
+
+export interface RecommendationScoreBreakdown {
+  overallScore: number; // 0 - 100
+  budgetScore: number;  // 0 - 100
+  locationScore: number;// 0 - 100
+  configScore: number;  // 0 - 100
+  amenitiesScore: number;// 0 - 100
+  verificationScore: number;// 0 - 100
+  freshnessScore: number; // 0 - 100
+  weightsUsed: {
+    budget: number;
+    location: number;
+    config: number;
+    amenities: number;
+    verification: number;
+    freshness: number;
+  };
+  matchHighlights: string[];
+  tradeOffs: string[];
+  missingDetails: string[];
 }
 
 export interface SaathiPropertyCard {
   id: string;
   title: string;
   propertyType: string;
+  propertyCategory?: string;
+  tenure?: 'rent' | 'buy' | 'short_term' | 'long_term';
   transactionType: 'rent' | 'buy';
   city: string;
   locality: string;
   state: TargetState;
   rentPerMonth: number;
+  salePrice?: number;
   securityDeposit?: number;
+  maintenanceCharges?: number;
   bedrooms: number;
   bathrooms?: number;
   areaSqFt?: number;
+  carpetAreaSqFt?: number;
   furnishing: string;
   verificationStatus: string;
   isFresh: boolean;
@@ -782,6 +868,7 @@ export interface SaathiPropertyCard {
   matchRationale: string;
   objectiveFacts: string[];
   ownerMaskedContact?: string;
+  recommendationScore?: RecommendationScoreBreakdown;
 }
 
 export interface PropertyComparisonItem {
@@ -798,6 +885,74 @@ export interface PropertyComparisonItem {
   availability: string;
   verificationStatus: string;
   lastUpdated: string;
+  securityDeposit?: string;
+  maintenanceCharges?: string;
+  carpetArea?: string;
+}
+
+export interface ComprehensiveComparison {
+  items: PropertyComparisonItem[];
+  strongestMatch?: {
+    propertyId: string;
+    title: string;
+    reason: string;
+  };
+  bestBudgetFit?: {
+    propertyId: string;
+    title: string;
+    rentOrPrice: string;
+    reason: string;
+  };
+  bestLocationFit?: {
+    propertyId: string;
+    title: string;
+    location: string;
+    reason: string;
+  };
+  keyDisadvantages: Record<string, string[]>;
+  missingInformation: Record<string, string[]>;
+  questionsForOwner: string[];
+}
+
+export type FraudFindingType = 'confirmed_issue' | 'potential_warning_sign' | 'insufficient_information';
+
+export interface FraudRiskFinding {
+  code: string;
+  type: FraudFindingType;
+  severity: 'low' | 'medium' | 'high';
+  title: string;
+  description: string;
+}
+
+export interface FraudRiskAnalysis {
+  overallRiskLevel: 'low' | 'medium' | 'high';
+  summary: string;
+  findings: FraudRiskFinding[];
+  verificationChecklist: string[];
+  safeNextSteps: string[];
+}
+
+export type AiFeedbackRating = 
+  | 'helpful' 
+  | 'not_relevant' 
+  | 'incorrect_information' 
+  | 'outdated_information' 
+  | 'missing_information';
+
+export interface AiFeedbackSubmission {
+  id: string;
+  messageId: string;
+  queryText?: string;
+  rating: AiFeedbackRating;
+  comment?: string;
+  userId?: string;
+  createdAt: string;
+}
+
+export interface SaathiConversationContext {
+  sessionId?: string;
+  history?: Array<{ role: 'user' | 'assistant'; text: string; filters?: SaathiSearchFilters }>;
+  lastFilters?: SaathiSearchFilters;
 }
 
 export type SaathiActionType = 
@@ -835,15 +990,20 @@ export interface AiChatMessage {
   suggestedFilters?: SaathiSearchFilters;
   properties?: SaathiPropertyCard[];
   comparisonTable?: PropertyComparisonItem[];
+  comprehensiveComparison?: ComprehensiveComparison;
+  fraudAnalysis?: FraudRiskAnalysis;
   actions?: SaathiActionSuggestion[];
   followUpQuestion?: string;
   guidanceTopic?: string;
   disclaimerNote?: string;
   providerInfo?: SaathiProviderStatus;
+  sessionId?: string;
   relatedEntities?: {
     verifiedPropertyCount: number;
     legalReference?: string;
   };
+  scoreBreakdown?: Record<string, RecommendationScoreBreakdown>;
+  feedbackSubmitted?: boolean;
 }
 
 export type SupportedLanguage = 'en' | 'hi' | 'hi-en';

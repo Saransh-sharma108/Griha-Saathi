@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Users, 
+  User,
   MessageSquare, 
   Lock, 
   Send, 
@@ -12,6 +13,9 @@ import {
   ShieldAlert,
   Ban,
   Check,
+  CheckCheck,
+  Bot,
+  ArrowLeft,
   X,
   RefreshCw,
   MapPin,
@@ -67,6 +71,14 @@ export const ConnectionsPage: React.FC<ConnectionsPageProps> = ({
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 768 : false));
+
+  // Handle mobile screen size changes
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Modals state
   const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -251,7 +263,11 @@ export const ConnectionsPage: React.FC<ConnectionsPageProps> = ({
       });
       const data = await res.json();
       if (res.ok && data.success && data.message) {
-        setMessages((prev) => [...prev, data.message]);
+        if (data.replyMessage) {
+          setMessages((prev) => [...prev, data.message, data.replyMessage]);
+        } else {
+          setMessages((prev) => [...prev, data.message]);
+        }
         setNewMessage('');
         fetchConnections();
       } else {
@@ -672,18 +688,18 @@ export const ConnectionsPage: React.FC<ConnectionsPageProps> = ({
               <Lock size={22} />
             </div>
             <h2 style={{ fontSize: '1.25rem', color: 'var(--gs-forest-deep)', fontWeight: 700, marginBottom: '0.5rem' }}>
-              Authenticated Access Protected
+              Profile Access Required
             </h2>
             <p style={{ fontSize: '0.9rem', color: 'var(--gs-text-secondary)', marginBottom: '1.5rem', lineHeight: 1.6 }}>
-              {t.authRequiredNotice}
+              Direct owner-tenant inquiries and visit scheduling are accessible through your verified profile.
             </p>
             <button 
               onClick={onOpenAuth} 
               className="gs-btn gs-btn-primary"
               style={{ padding: '0.65rem 1.75rem', fontSize: '0.92rem', borderRadius: 'var(--gs-radius-sm)' }}
             >
-              <Lock size={15} />
-              <span>{t.loginToAccess}</span>
+              <User size={15} />
+              <span>Personal Profile & Settings</span>
             </button>
           </div>
         ) : (
@@ -753,215 +769,715 @@ export const ConnectionsPage: React.FC<ConnectionsPageProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: '1.5rem', minHeight: '620px' }}>
+                  <div
+                    style={{
+                      display: isMobile ? 'block' : 'grid',
+                      gridTemplateColumns: isMobile ? '1fr' : 'minmax(310px, 350px) 1fr',
+                      gap: '1.5rem',
+                      minHeight: '620px',
+                    }}
+                  >
                     {/* Conversations List Panel */}
-                    <div className="gs-card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', height: 'fit-content', maxHeight: '720px', overflowY: 'auto' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.25rem 0.5rem', marginBottom: '0.5rem' }}>
-                        <span style={{ fontSize: '0.82rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--gs-text-muted)' }}>
-                          Established Threads
-                        </span>
-                        <button onClick={fetchConnections} className="gs-btn gs-btn-outline gs-btn-sm" style={{ padding: '0.25rem 0.5rem' }} title="Refresh">
-                          <RefreshCw size={13} />
-                        </button>
-                      </div>
-
-                      {acceptedConnections.map((conn) => {
-                        const isSelected = selectedConnection?.id === conn.id;
-                        const otherParty = conn.senderId === user.id ? conn.recipientProfile : conn.senderProfile;
-                        const title = conn.propertyPreview?.title || `Property ID ${conn.propertyId}`;
-
-                        return (
-                          <div
-                            key={conn.id}
-                            onClick={() => setSelectedConnection(conn)}
-                            style={{
-                              padding: '0.85rem 1rem',
-                              borderRadius: 'var(--gs-radius-md)',
-                              backgroundColor: isSelected ? 'var(--gs-forest-soft)' : 'var(--gs-bg-card)',
-                              border: `1px solid ${isSelected ? 'var(--gs-forest-primary)' : 'var(--gs-border)'}`,
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease',
-                            }}
-                          >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.3rem' }}>
-                              <strong style={{ fontSize: '0.92rem', color: 'var(--gs-forest-deep)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 190 }}>
-                                {otherParty?.fullName || otherParty?.identifier || 'Verified Member'}
-                              </strong>
-                              {(conn.unreadCount || 0) > 0 && (
-                                <span className="gs-badge" style={{ backgroundColor: 'var(--gs-status-error)', color: '#FFFFFF', fontSize: '0.7rem', padding: '0.1rem 0.4rem', fontWeight: 800 }}>
-                                  {conn.unreadCount} new
-                                </span>
-                              )}
-                            </div>
-
-                            <div style={{ fontSize: '0.78rem', color: 'var(--gs-text-muted)', marginBottom: '0.4rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              <MapPin size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />
-                              {title}
-                            </div>
-
-                            {conn.lastMessage ? (
-                              <div style={{ fontSize: '0.8rem', color: 'var(--gs-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {conn.lastMessage.senderId === user.id ? 'You: ' : ''}{conn.lastMessage.content}
-                              </div>
-                            ) : (
-                              <div style={{ fontSize: '0.78rem', color: 'var(--gs-text-light)', fontStyle: 'italic' }}>
-                                Direct connection active. Say hello.
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Chat Window Panel */}
-                    {selectedConnection ? (
-                      <div className="gs-card" style={{ display: 'flex', flexDirection: 'column', height: '640px', padding: 0, overflow: 'hidden' }}>
-                        {/* Chat Header */}
-                        <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--gs-border)', backgroundColor: 'var(--gs-forest-soft)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                              <strong style={{ fontSize: '1.05rem', color: 'var(--gs-forest-deep)' }}>
-                                {selectedConnection.senderId === user.id
-                                  ? selectedConnection.recipientProfile?.fullName || selectedConnection.recipientProfile?.identifier
-                                  : selectedConnection.senderProfile?.fullName || selectedConnection.senderProfile?.identifier}
-                              </strong>
-                              <span className="gs-badge gs-badge-verified" style={{ fontSize: '0.72rem' }}>
-                                <CheckCircle2 size={11} /> Verified Contact
-                              </span>
-                            </div>
-                            {selectedConnection.propertyPreview && (
-                              <div style={{ fontSize: '0.8rem', color: 'var(--gs-text-muted)', marginTop: '0.15rem' }}>
-                                Ref: <strong>{selectedConnection.propertyPreview.title}</strong> &bull; ₹{selectedConnection.propertyPreview.rentPerMonth?.toLocaleString('en-IN')}/mo &bull; {selectedConnection.propertyPreview.city}
-                              </div>
-                            )}
-                          </div>
-
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            <button
-                              onClick={() => {
-                                setScheduleDate(todayStr);
-                                setShowScheduleModal(true);
-                              }}
-                              className="gs-btn gs-btn-primary gs-btn-sm"
-                              title="Request an in-person property visit"
-                            >
-                              <Calendar size={14} />
-                              <span>{t.scheduleVisit}</span>
-                            </button>
-                            <button
-                              onClick={() => handleBlockConnection(selectedConnection.id)}
-                              className="gs-btn gs-btn-outline gs-btn-sm"
-                              style={{ color: 'var(--gs-status-error)' }}
-                              title="Block user from further communication"
-                            >
-                              <Ban size={14} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Messages Stream */}
-                        <div style={{ flex: 1, padding: '1.25rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                          {messages.length === 0 ? (
-                            <div style={{ textAlign: 'center', color: 'var(--gs-text-muted)', margin: 'auto', maxWidth: 360, fontSize: '0.88rem', lineHeight: 1.5 }}>
-                              <MessageSquare size={32} style={{ margin: '0 auto 0.75rem', color: 'var(--gs-forest-primary)' }} />
-                              No messages exchanged yet. Send a note to discuss lease terms, check move-in readiness, or schedule an inspection.
-                            </div>
-                          ) : (
-                            messages.map((msg) => {
-                              const isMe = msg.senderId === user.id;
-                              return (
-                                <div
-                                  key={msg.id}
-                                  style={{
-                                    alignSelf: isMe ? 'flex-end' : 'flex-start',
-                                    maxWidth: '75%',
-                                    position: 'relative',
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      backgroundColor: isMe ? 'var(--gs-forest-deep)' : 'var(--gs-forest-soft)',
-                                      color: isMe ? '#FFFFFF' : 'var(--gs-text-primary)',
-                                      padding: '0.75rem 1rem',
-                                      borderRadius: isMe ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-                                      fontSize: '0.9rem',
-                                      lineHeight: 1.45,
-                                      wordBreak: 'break-word',
-                                    }}
-                                  >
-                                    {msg.content}
-                                  </div>
-                                  <div
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '0.4rem',
-                                      fontSize: '0.72rem',
-                                      color: 'var(--gs-text-light)',
-                                      marginTop: '0.2rem',
-                                      justifyContent: isMe ? 'flex-end' : 'flex-start',
-                                    }}
-                                  >
-                                    <span>
-                                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                    {isMe && (
-                                      <span>
-                                        {msg.isRead ? <span style={{ color: 'var(--gs-status-success)' }}>&bull; Read</span> : '&bull; Sent'}
-                                      </span>
-                                    )}
-                                    {!isMe && (
-                                      <button
-                                        onClick={() => setReportingMessage(msg)}
-                                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--gs-text-light)', padding: 0 }}
-                                        title="Report abusive message"
-                                      >
-                                        <Flag size={11} />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                          <div ref={messagesEndRef} />
-                        </div>
-
-                        {/* Chat Input Form */}
-                        <form
-                          onSubmit={handleSendMessage}
+                    {(!isMobile || !selectedConnection) && (
+                      <div
+                        className="gs-card"
+                        style={{
+                          padding: '1rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.6rem',
+                          height: 'fit-content',
+                          maxHeight: '720px',
+                          overflowY: 'auto',
+                        }}
+                      >
+                        <div
                           style={{
-                            padding: '0.85rem 1rem',
-                            borderTop: '1px solid var(--gs-border)',
-                            backgroundColor: 'var(--gs-bg-card)',
                             display: 'flex',
-                            gap: '0.6rem',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '0.25rem 0.5rem',
+                            marginBottom: '0.35rem',
                           }}
                         >
-                          <input
-                            type="text"
-                            placeholder={t.typeMessagePlaceholder}
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            maxLength={2000}
+                          <span
+                            style={{
+                              fontSize: '0.82rem',
+                              fontWeight: 700,
+                              textTransform: 'uppercase',
+                              color: 'var(--gs-text-muted)',
+                              letterSpacing: '0.5px',
+                            }}
+                          >
+                            Conversations ({acceptedConnections.length})
+                          </span>
+                          <button
+                            onClick={fetchConnections}
+                            className="gs-btn gs-btn-outline gs-btn-sm"
+                            style={{ padding: '0.25rem 0.5rem' }}
+                            title="Refresh contacts"
+                          >
+                            <RefreshCw size={13} />
+                          </button>
+                        </div>
+
+                        {acceptedConnections.map((conn) => {
+                          const isSelected = selectedConnection?.id === conn.id;
+                          const otherParty = conn.senderId === user.id ? conn.recipientProfile : conn.senderProfile;
+                          const isDemo = Boolean(conn.isDemo || otherParty?.isDemo);
+                          const displayName =
+                            otherParty?.fullName ||
+                            (conn.senderId === 'usr_demo_aryan'
+                              ? 'Aryan'
+                              : conn.senderId === 'usr_demo_madhav'
+                              ? 'Madhav'
+                              : conn.senderId === 'usr_demo_saksham'
+                              ? 'Saksham'
+                              : otherParty?.identifier || 'Verified Member');
+
+                          const avatarInitials =
+                            conn.avatarInitials ||
+                            otherParty?.avatarInitials ||
+                            (displayName ? displayName.slice(0, 2).toUpperCase() : 'GS');
+                          const avatarBg =
+                            conn.avatarBg ||
+                            otherParty?.avatarBg ||
+                            (displayName.startsWith('Ar')
+                              ? '#2563EB'
+                              : displayName.startsWith('Mad')
+                              ? '#D97706'
+                              : displayName.startsWith('Sak')
+                              ? '#059669'
+                              : '#047857');
+
+                          const isOnline = (conn.onlineStatus || otherParty?.onlineStatus) === 'online';
+                          const lastActiveText =
+                            conn.lastActiveText ||
+                            otherParty?.lastActiveText ||
+                            (isOnline ? 'Online now' : 'Active recently');
+                          const title = conn.propertyPreview?.title || `Property Ref #${conn.propertyId}`;
+
+                          return (
+                            <div
+                              key={conn.id}
+                              onClick={() => {
+                                setSelectedConnection(conn);
+                                markRead(conn.id);
+                              }}
+                              style={{
+                                padding: '0.85rem 1rem',
+                                borderRadius: 'var(--gs-radius-md)',
+                                backgroundColor: isSelected ? 'var(--gs-forest-soft)' : 'var(--gs-bg-card)',
+                                border: `1.5px solid ${isSelected ? 'var(--gs-forest-primary)' : 'var(--gs-border)'}`,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease',
+                                display: 'flex',
+                                gap: '0.85rem',
+                                alignItems: 'flex-start',
+                              }}
+                            >
+                              {/* Avatar with Status Indicator */}
+                              <div style={{ position: 'relative', width: 44, height: 44, flexShrink: 0 }}>
+                                <div
+                                  style={{
+                                    width: 44,
+                                    height: 44,
+                                    borderRadius: '50%',
+                                    backgroundColor: avatarBg,
+                                    color: '#FFFFFF',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontWeight: 700,
+                                    fontSize: '0.95rem',
+                                    letterSpacing: '0.5px',
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                                  }}
+                                >
+                                  {avatarInitials}
+                                </div>
+                                <span
+                                  style={{
+                                    position: 'absolute',
+                                    bottom: 0,
+                                    right: 0,
+                                    width: 12,
+                                    height: 12,
+                                    borderRadius: '50%',
+                                    backgroundColor: isOnline ? '#22C55E' : '#9CA3AF',
+                                    border: '2px solid var(--gs-bg-card)',
+                                    boxShadow: isOnline ? '0 0 6px #22C55E' : 'none',
+                                  }}
+                                  title={isOnline ? 'Online now' : lastActiveText}
+                                />
+                              </div>
+
+                              {/* Contact Content */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    marginBottom: '0.2rem',
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                                    <strong
+                                      style={{
+                                        fontSize: '0.94rem',
+                                        color: 'var(--gs-forest-deep)',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                      }}
+                                    >
+                                      {displayName}
+                                    </strong>
+                                    {isDemo ? (
+                                      <span
+                                        className="gs-badge"
+                                        style={{
+                                          backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                                          color: '#2563EB',
+                                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                                          fontSize: '0.64rem',
+                                          padding: '0.08rem 0.35rem',
+                                          fontWeight: 700,
+                                          letterSpacing: '0.3px',
+                                        }}
+                                      >
+                                        DEMO
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="gs-badge gs-badge-verified"
+                                        style={{ fontSize: '0.64rem', padding: '0.08rem 0.35rem' }}
+                                      >
+                                        Verified
+                                      </span>
+                                    )}
+                                  </div>
+                                  {(conn.unreadCount || 0) > 0 && (
+                                    <span
+                                      style={{
+                                        backgroundColor: '#EF4444',
+                                        color: '#FFFFFF',
+                                        fontSize: '0.7rem',
+                                        padding: '0.12rem 0.45rem',
+                                        borderRadius: '10px',
+                                        fontWeight: 800,
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {conn.unreadCount} new
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    marginBottom: '0.3rem',
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      fontSize: '0.74rem',
+                                      color: isOnline ? '#059669' : 'var(--gs-text-muted)',
+                                      fontWeight: isOnline ? 600 : 400,
+                                    }}
+                                  >
+                                    {isOnline ? '● Online now' : lastActiveText}
+                                  </span>
+                                  {conn.lastMessage && (
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--gs-text-light)' }}>
+                                      {new Date(conn.lastMessage.timestamp).toLocaleTimeString([], {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div
+                                  style={{
+                                    fontSize: '0.79rem',
+                                    color: 'var(--gs-text-secondary)',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {conn.lastMessage ? (
+                                    <>
+                                      {conn.lastMessage.senderId === user.id ? (
+                                        <span style={{ color: 'var(--gs-forest-primary)', fontWeight: 600 }}>
+                                          You:{' '}
+                                        </span>
+                                      ) : (
+                                        ''
+                                      )}
+                                      {conn.lastMessage.content.replace(/^\[Demo Reply\]\s*/, '')}
+                                    </>
+                                  ) : (
+                                    <span style={{ color: 'var(--gs-text-light)', fontStyle: 'italic' }}>
+                                      Direct connection active. Say hello.
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* Chat Window Panel */}
+                    {(!isMobile || selectedConnection) && (
+                      selectedConnection ? (
+                        <div
+                          className="gs-card"
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            height: '640px',
+                            padding: 0,
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {/* Chat Header */}
+                          {(() => {
+                            const otherParty =
+                              selectedConnection.senderId === user.id
+                                ? selectedConnection.recipientProfile
+                                : selectedConnection.senderProfile;
+                            const isDemo = Boolean(selectedConnection.isDemo || otherParty?.isDemo);
+                            const displayName =
+                              otherParty?.fullName ||
+                              (selectedConnection.senderId === 'usr_demo_aryan'
+                                ? 'Aryan'
+                                : selectedConnection.senderId === 'usr_demo_madhav'
+                                ? 'Madhav'
+                                : selectedConnection.senderId === 'usr_demo_saksham'
+                                ? 'Saksham'
+                                : otherParty?.identifier || 'Verified Member');
+
+                            const avatarInitials =
+                              selectedConnection.avatarInitials ||
+                              otherParty?.avatarInitials ||
+                              (displayName ? displayName.slice(0, 2).toUpperCase() : 'GS');
+                            const avatarBg =
+                              selectedConnection.avatarBg ||
+                              otherParty?.avatarBg ||
+                              (displayName.startsWith('Ar')
+                                ? '#2563EB'
+                                : displayName.startsWith('Mad')
+                                ? '#D97706'
+                                : displayName.startsWith('Sak')
+                                ? '#059669'
+                                : '#047857');
+
+                            const isOnline =
+                              (selectedConnection.onlineStatus || otherParty?.onlineStatus) === 'online';
+                            const lastActiveText =
+                              selectedConnection.lastActiveText ||
+                              otherParty?.lastActiveText ||
+                              (isOnline ? 'Online now' : 'Active recently');
+
+                            return (
+                              <div
+                                style={{
+                                  padding: '0.9rem 1.25rem',
+                                  borderBottom: '1px solid var(--gs-border)',
+                                  backgroundColor: 'var(--gs-forest-soft)',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  flexWrap: 'wrap',
+                                  gap: '0.75rem',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                  {isMobile && (
+                                    <button
+                                      onClick={() => setSelectedConnection(null)}
+                                      className="gs-btn gs-btn-outline gs-btn-sm"
+                                      style={{ padding: '0.35rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                                      title="Back to contacts list"
+                                    >
+                                      <ArrowLeft size={15} />
+                                      <span>Back</span>
+                                    </button>
+                                  )}
+
+                                  {/* Contact Avatar with status dot */}
+                                  <div style={{ position: 'relative', width: 42, height: 42, flexShrink: 0 }}>
+                                    <div
+                                      style={{
+                                        width: 42,
+                                        height: 42,
+                                        borderRadius: '50%',
+                                        backgroundColor: avatarBg,
+                                        color: '#FFFFFF',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontWeight: 700,
+                                        fontSize: '0.92rem',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                                      }}
+                                    >
+                                      {avatarInitials}
+                                    </div>
+                                    <span
+                                      style={{
+                                        position: 'absolute',
+                                        bottom: 0,
+                                        right: 0,
+                                        width: 11,
+                                        height: 11,
+                                        borderRadius: '50%',
+                                        backgroundColor: isOnline ? '#22C55E' : '#9CA3AF',
+                                        border: '2px solid var(--gs-bg-card)',
+                                        boxShadow: isOnline ? '0 0 6px #22C55E' : 'none',
+                                      }}
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                      <strong style={{ fontSize: '1.05rem', color: 'var(--gs-forest-deep)' }}>
+                                        {displayName}
+                                      </strong>
+                                      {isDemo ? (
+                                        <span
+                                          className="gs-badge"
+                                          style={{
+                                            backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                                            color: '#2563EB',
+                                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                                            fontSize: '0.68rem',
+                                            padding: '0.1rem 0.45rem',
+                                            fontWeight: 700,
+                                            letterSpacing: '0.3px',
+                                          }}
+                                        >
+                                          DEMO ACCOUNT
+                                        </span>
+                                      ) : (
+                                        <span className="gs-badge gs-badge-verified" style={{ fontSize: '0.72rem' }}>
+                                          <CheckCircle2 size={11} /> Verified Contact
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        marginTop: '0.15rem',
+                                        fontSize: '0.78rem',
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          color: isOnline ? '#059669' : 'var(--gs-text-muted)',
+                                          fontWeight: isOnline ? 600 : 400,
+                                        }}
+                                      >
+                                        {isOnline ? '● Online now' : lastActiveText}
+                                      </span>
+                                      {selectedConnection.propertyPreview && (
+                                        <span style={{ color: 'var(--gs-text-muted)' }}>
+                                          &bull; Ref: <strong>{selectedConnection.propertyPreview.title}</strong>
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                  <button
+                                    onClick={() => {
+                                      setScheduleDate(todayStr);
+                                      setShowScheduleModal(true);
+                                    }}
+                                    className="gs-btn gs-btn-primary gs-btn-sm"
+                                    title="Request an in-person property visit"
+                                  >
+                                    <Calendar size={14} />
+                                    <span>{t.scheduleVisit}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleBlockConnection(selectedConnection.id)}
+                                    className="gs-btn gs-btn-outline gs-btn-sm"
+                                    style={{ color: 'var(--gs-status-error)' }}
+                                    title="Block user from further communication"
+                                  >
+                                    <Ban size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          {/* Messages Stream */}
+                          <div
                             style={{
                               flex: 1,
-                              padding: '0.75rem 1rem',
-                              border: '1px solid var(--gs-border)',
-                              borderRadius: 'var(--gs-radius-md)',
-                              fontSize: '0.92rem',
+                              padding: '1.25rem',
+                              overflowY: 'auto',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.85rem',
                             }}
-                          />
-                          <button type="submit" disabled={!newMessage.trim()} className="gs-btn gs-btn-primary">
-                            <Send size={16} />
-                            <span>{t.sendMessage}</span>
-                          </button>
-                        </form>
-                      </div>
-                    ) : (
-                      <div className="gs-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '640px', color: 'var(--gs-text-muted)' }}>
-                        Select a conversation from the left to view messages.
-                      </div>
+                          >
+                            {/* Demo Notice Banner */}
+                            {selectedConnection.isDemo && (
+                              <div
+                                style={{
+                                  backgroundColor: '#10291F',
+                                  border: '1px solid #176B50',
+                                  borderRadius: 'var(--gs-radius-md)',
+                                  padding: '0.8rem 1.15rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.75rem',
+                                  fontSize: '0.82rem',
+                                  color: '#B8D8C8',
+                                  marginBottom: '0.4rem',
+                                  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.25)',
+                                }}
+                              >
+                                <Shield size={18} color="#35D6A0" style={{ flexShrink: 0 }} />
+                                <div style={{ lineHeight: 1.45 }}>
+                                  <strong style={{ color: '#F2FFF7' }}>Demo Conversation Environment:</strong>{' '}
+                                  You are interacting with a simulated demo contact for feature evaluation. All
+                                  messages are securely saved in the database. In genuine production, registered
+                                  tenants and landlords communicate directly.
+                                </div>
+                              </div>
+                            )}
+
+                            {messages.length === 0 ? (
+                              <div
+                                style={{
+                                  textAlign: 'center',
+                                  color: '#8CA397',
+                                  margin: 'auto',
+                                  maxWidth: 360,
+                                  fontSize: '0.88rem',
+                                  lineHeight: 1.5,
+                                }}
+                              >
+                                <MessageSquare
+                                  size={32}
+                                  style={{ margin: '0 auto 0.75rem', color: '#35D6A0' }}
+                                />
+                                No messages exchanged yet. Send a note to discuss lease terms, check move-in readiness,
+                                or schedule an inspection.
+                              </div>
+                            ) : (
+                              messages.map((msg) => {
+                                const isMe = msg.senderId === user.id;
+                                const isDemoReply = Boolean(msg.isDemo || msg.content.startsWith('[Demo Reply]'));
+                                const cleanContent = msg.content.replace(/^\[Demo Reply\]\s*/, '');
+
+                                return (
+                                  <div
+                                    key={msg.id}
+                                    style={{
+                                      alignSelf: isMe ? 'flex-end' : 'flex-start',
+                                      maxWidth: '78%',
+                                      position: 'relative',
+                                    }}
+                                  >
+                                    <div
+                                      className={isMe ? 'gs-chat-bubble-sent' : 'gs-chat-bubble-received'}
+                                      style={{
+                                        backgroundColor: isMe ? '#064E3B' : '#10291F',
+                                        color: isMe ? '#F4FFF9' : '#E8F2EC',
+                                        padding: '0.85rem 1.15rem',
+                                        borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                                        border: isMe ? '1px solid #168A65' : '1px solid #24513D',
+                                        boxShadow: isMe
+                                          ? '0 4px 14px rgba(6, 78, 59, 0.35)'
+                                          : '0 4px 14px rgba(0, 0, 0, 0.25)',
+                                        fontSize: '0.92rem',
+                                        lineHeight: 1.5,
+                                        wordBreak: 'break-word',
+                                      }}
+                                    >
+                                      {!isMe && isDemoReply && (
+                                        <div
+                                          style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.3rem',
+                                            backgroundColor: 'rgba(53, 214, 160, 0.12)',
+                                            color: '#35D6A0',
+                                            border: '1px solid rgba(53, 214, 160, 0.28)',
+                                            fontSize: '0.68rem',
+                                            fontWeight: 700,
+                                            padding: '0.12rem 0.45rem',
+                                            borderRadius: '4px',
+                                            marginBottom: '0.4rem',
+                                            letterSpacing: '0.4px',
+                                          }}
+                                        >
+                                          <Bot size={11} color="#35D6A0" />
+                                          <span>DEMO REPLY</span>
+                                        </div>
+                                      )}
+                                      <div style={{ color: isMe ? '#F4FFF9' : '#E8F2EC' }}>{cleanContent}</div>
+                                    </div>
+
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.45rem',
+                                        fontSize: '0.72rem',
+                                        color: isMe ? '#86EFAC' : '#8CA397',
+                                        marginTop: '0.3rem',
+                                        justifyContent: isMe ? 'flex-end' : 'flex-start',
+                                      }}
+                                    >
+                                      <span>
+                                        {new Date(msg.timestamp).toLocaleTimeString([], {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })}
+                                      </span>
+                                      {isMe && (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                          {msg.isRead ? (
+                                            <span
+                                              style={{
+                                                color: '#34D399',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '2px',
+                                                fontWeight: 600,
+                                              }}
+                                            >
+                                              <CheckCheck size={13} color="#34D399" /> Read
+                                            </span>
+                                          ) : (
+                                            <span
+                                              style={{
+                                                color: '#86EFAC',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '2px',
+                                              }}
+                                            >
+                                              <Check size={13} color="#86EFAC" /> Sent
+                                            </span>
+                                          )}
+                                        </span>
+                                      )}
+                                      {!isMe && (
+                                        <button
+                                          onClick={() => setReportingMessage(msg)}
+                                          style={{
+                                            border: 'none',
+                                            background: 'transparent',
+                                            cursor: 'pointer',
+                                            color: '#8CA397',
+                                            padding: 0,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                          }}
+                                          title="Report message"
+                                        >
+                                          <Flag size={11} color="#8CA397" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                            <div ref={messagesEndRef} />
+                          </div>
+
+                          {/* Chat Input Form */}
+                          <form
+                            onSubmit={handleSendMessage}
+                            style={{
+                              padding: '0.85rem 1.1rem',
+                              borderTop: '1px solid #176B50',
+                              backgroundColor: '#0B1B13',
+                              display: 'flex',
+                              gap: '0.65rem',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <input
+                              type="text"
+                              placeholder="Type your message... (Press Enter to send)"
+                              value={newMessage}
+                              onChange={(e) => setNewMessage(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSendMessage(e);
+                                }
+                              }}
+                              maxLength={2000}
+                              style={{
+                                flex: 1,
+                                padding: '0.75rem 1rem',
+                                border: '1px solid #24513D',
+                                borderRadius: 'var(--gs-radius-md)',
+                                fontSize: '0.92rem',
+                                outline: 'none',
+                                backgroundColor: '#08150E',
+                                color: '#F4FFF9',
+                              }}
+                            />
+                            <button
+                              type="submit"
+                              disabled={!newMessage.trim()}
+                              className="gs-btn gs-btn-primary"
+                              style={{
+                                padding: '0.75rem 1.25rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem',
+                                borderRadius: 'var(--gs-radius-md)',
+                                backgroundColor: '#064E3B',
+                                border: '1px solid #168A65',
+                                color: '#F4FFF9',
+                              }}
+                            >
+                              <Send size={15} color="#F4FFF9" />
+                              <span>{t.sendMessage}</span>
+                            </button>
+                          </form>
+                        </div>
+                      ) : (
+                        <div
+                          className="gs-card"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            height: '640px',
+                            color: 'var(--gs-text-muted)',
+                            flexDirection: 'column',
+                            gap: '0.75rem',
+                          }}
+                        >
+                          <MessageSquare size={36} color="var(--gs-forest-sage)" />
+                          <span>Select a conversation from the left to view messages.</span>
+                        </div>
+                      )
                     )}
                   </div>
                 )}

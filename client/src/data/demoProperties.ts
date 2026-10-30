@@ -1,4 +1,4 @@
-import { DemoPropertyType, FurnishingStatus, Property, PropertyType, TargetState } from '../../../shared/types.js';
+import { DemoPropertyType, FurnishingStatus, Property, PropertyType, TargetState } from '@shared/types';
 
 export const DEMO_LISTING_NOTICE =
   'This is a fictional demonstration listing created to demonstrate Griha Saathi property search. It is not a real property and is not available for rent.';

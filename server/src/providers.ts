@@ -1,22 +1,27 @@
 import { Router, Request, Response } from 'express';
 import { ProviderIntegrationStatus, TargetState } from '../../shared/types.js';
+import { isCredentialSet } from './loadEnv.js';
 
 export const providersRouter = Router();
 
 const targetStates: TargetState[] = ['Delhi', 'Haryana', 'Punjab', 'Himachal Pradesh', 'Jammu & Kashmir'];
 
 export function getProviderIntegrations(): ProviderIntegrationStatus[] {
+  const hasMsg91Key = isCredentialSet(process.env.MSG91_AUTH_KEY || process.env.SMS_GATEWAY_API_KEY, ['YOUR_MSG91_AUTH_KEY', 'YOUR_SMS_API_KEY']);
+  const hasMsg91Tpl = isCredentialSet(process.env.MSG91_TEMPLATE_ID || process.env.SMS_DLT_TEMPLATE_ID, ['YOUR_MSG91_TEMPLATE_ID', 'YOUR_MSG91_DLT_TEMPLATE_ID']);
+  const isSmsConfigured = hasMsg91Key && hasMsg91Tpl;
+
   return [
     {
       id: 'prov_telecom_sms',
       name: 'TRAI-DLT Registered SMS Gateway (MSG91 / Twilio)',
       category: 'sms_email',
       targetRegions: targetStates,
-      configured: Boolean(process.env.SMS_GATEWAY_API_KEY && process.env.SMS_GATEWAY_API_KEY !== 'YOUR_SMS_API_KEY'),
-      statusMessage: process.env.SMS_GATEWAY_API_KEY && process.env.SMS_GATEWAY_API_KEY !== 'YOUR_SMS_API_KEY'
+      configured: isSmsConfigured,
+      statusMessage: isSmsConfigured
         ? 'Connected & active.'
-        : 'Unconfigured. Awaiting TRAI DLT approved sender ID and SMS Gateway API key in .env.',
-      requiredCredentials: ['SMS_GATEWAY_API_KEY', 'SMS_GATEWAY_SENDER_ID', 'SMS_DLT_TEMPLATE_ID'],
+        : 'Unconfigured. Awaiting TRAI DLT approved sender ID, MSG91 Auth Key, and Template ID in .env.',
+      requiredCredentials: ['MSG91_AUTH_KEY', 'MSG91_TEMPLATE_ID', 'MSG91_SENDER_ID'],
       documentationRef: '/docs/data_providers_and_integrations.md#1-telecom-sms--email-gateways',
     },
     {

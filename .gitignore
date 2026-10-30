@@ -68,3 +68,7 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/tasks.json
 !.vscode/launch.json
+
+# Private runtime data
+server/data/*.json
+server/data/*.json.tmp

@@ -13,8 +13,8 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap"
     rel="stylesheet" />
-  <link rel="icon" type="image/svg+xml"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231B4332'><path d='M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z'/></svg>" />
+  <link rel="icon" type="image/png" href="/griha-saathi-logo.png" />
+  <link rel="apple-touch-icon" href="/griha-saathi-logo.png" />
   <script>
     (function () {
       var port = window.location.port || '';
@@ -58,29 +58,29 @@
             cache: 'no-store',
             signal: controller ? controller.signal : undefined
           })
-          .then(function (res) {
-            if (timeoutId) clearTimeout(timeoutId);
-            if (res.ok) {
-              onServerOnline();
-            } else {
-              return fetch('http://localhost:3000/', { method: 'GET', mode: 'cors', cache: 'no-store' });
-            }
-          })
-          .then(function (rootRes) {
-            if (rootRes && rootRes.ok) {
-              onServerOnline();
-            } else if (rootRes) {
+            .then(function (res) {
+              if (timeoutId) clearTimeout(timeoutId);
+              if (res.ok) {
+                onServerOnline();
+              } else {
+                return fetch('http://localhost:3000/', { method: 'GET', mode: 'cors', cache: 'no-store' });
+              }
+            })
+            .then(function (rootRes) {
+              if (rootRes && rootRes.ok) {
+                onServerOnline();
+              } else if (rootRes) {
+                onServerOffline(isManual);
+              }
+            })
+            .catch(function () {
+              if (timeoutId) clearTimeout(timeoutId);
               onServerOffline(isManual);
-            }
-          })
-          .catch(function () {
-            if (timeoutId) clearTimeout(timeoutId);
-            onServerOffline(isManual);
-          })
-          .finally(function () {
-            isChecking = false;
-            if (retryBtn) retryBtn.disabled = false;
-          });
+            })
+            .finally(function () {
+              isChecking = false;
+              if (retryBtn) retryBtn.disabled = false;
+            });
         }
 
         function onServerOnline() {
@@ -134,7 +134,9 @@
                 .gs-btn-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
               </style>
               <div style="background: #FFFFFF; border: 1px solid #E1E6E2; border-radius: 20px; padding: 2.25rem; max-width: 600px; width: 100%; box-shadow: 0 16px 36px rgba(16, 38, 26, 0.08); text-align: center;">
-                <div style="width: 58px; height: 58px; background: #EBF3EE; color: #1B4332; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 1rem; box-shadow: 0 4px 12px rgba(27,67,50,0.12);">🏠</div>
+                <div style="width: 58px; height: 58px; background: #0B2A20; border: 1px solid rgba(229, 169, 85, 0.4); border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 1rem; box-shadow: 0 4px 12px rgba(11,42,32,0.25);">
+                <img src="/griha-saathi-logo.png" style="height: 38px; width: auto; object-fit: contain;" alt="Griha Saathi Logo" />
+              </div>
                 <h1 style="color: #10261A; font-size: 1.5rem; margin: 0 0 0.4rem; font-weight: 800; letter-spacing: -0.02em;">Griha Saathi Platform</h1>
                 <p style="color: #4A5568; font-size: 0.92rem; line-height: 1.6; margin: 0 0 1.25rem;">
                   Modern single-page applications cannot run directly from <code>file://</code> protocol. The Griha Saathi development server is currently offline on <code>localhost:3000</code>.

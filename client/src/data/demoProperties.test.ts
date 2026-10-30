@@ -7,7 +7,7 @@ import {
   isValidDemoProperty,
   searchDemoProperties,
 } from './demoProperties.js';
-import { Property } from '../../../shared/types.js';
+import { Property } from '@shared/types';
 
 const regions = ['Jammu & Kashmir', 'Haryana', 'Punjab', 'Delhi', 'Himachal Pradesh'];
 

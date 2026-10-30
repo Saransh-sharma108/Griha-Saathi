@@ -1,8 +1,9 @@
 import React from 'react';
-import { Home, ShieldCheck, MapPin, Scale } from 'lucide-react';
+import { ShieldCheck, MapPin, Scale } from 'lucide-react';
 import { NavSection } from './Header';
 import { SupportedLanguage } from '@shared/types';
 import { translations } from '@shared/i18n';
+import grihaSaathiLogo from '../assets/branding/griha-saathi-logo.png';
 
 interface FooterProps {
   onNavigate: (section: NavSection) => void;
@@ -19,20 +20,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate, language }) => {
           {/* Brand & Mission Column */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
-              <div
-                style={{
-                  width: 32,
-                  height: 32,
-                  backgroundColor: 'var(--gs-forest-mid)',
-                  borderRadius: 'var(--gs-radius-sm)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#FFFFFF',
-                }}
-              >
-                <Home size={18} />
-              </div>
+              <img
+                src={grihaSaathiLogo}
+                alt="Griha Saathi"
+                style={{ height: 34, width: 'auto', objectFit: 'contain' }}
+                loading="lazy"
+                decoding="async"
+              />
               <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#FFFFFF', letterSpacing: '-0.02em' }}>
                 गृह साथी <span style={{ fontSize: '0.9rem', fontWeight: 500, color: '#A3B5AA' }}>| Griha Saathi</span>
               </span>

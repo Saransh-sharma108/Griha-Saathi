@@ -508,14 +508,14 @@ export const ListingPropertyPage: React.FC<ListingPropertyPageProps> = ({
               <Lock size={30} />
             </div>
             <h1 style={{ fontSize: '1.8rem', color: 'var(--gs-forest-deep)', marginBottom: '0.6rem' }}>
-              Authentication Required to List Property
+              Owner Profile Required to List Property
             </h1>
             <p style={{ fontSize: '0.96rem', color: 'var(--gs-text-secondary)', lineHeight: 1.6, marginBottom: '2rem' }}>
-              Griha Saathi maintains a strict anti-synthetic marketplace policy. Only authenticated property owners, verified real estate agents, builders, and contractually authorized sublessors may submit listings for our statutory audit pipeline.
+              Griha Saathi maintains a strict anti-synthetic marketplace policy. Only verified property owners, administrators, real estate agents, and builders may submit listings for our statutory audit pipeline.
             </p>
 
             <button onClick={onOpenAuth} className="gs-btn gs-btn-primary" style={{ padding: '0.85rem 2rem' }}>
-              <span>Sign In with PIN / Register Verified Account</span>
+              <span>Open Personal Profile & Settings</span>
               <ArrowRight size={18} />
             </button>
           </div>

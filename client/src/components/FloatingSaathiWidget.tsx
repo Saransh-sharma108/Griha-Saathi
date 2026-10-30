@@ -194,16 +194,17 @@ export const FloatingSaathiWidget: React.FC<FloatingSaathiWidgetProps> = ({
                   }}
                 >
                   <div
+                    className={isUser ? 'gs-chat-bubble-sent' : 'gs-chat-bubble-received'}
                     style={{
                       maxWidth: '85%',
                       padding: '0.65rem 0.85rem',
-                      borderRadius: 'var(--gs-radius-md)',
-                      backgroundColor: isUser ? 'var(--gs-forest-deep)' : 'var(--gs-surface-secondary)',
-                      color: isUser ? '#FFFFFF' : 'var(--gs-text-primary)',
+                      borderRadius: isUser ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
+                      backgroundColor: isUser ? '#064E3B' : '#10291F',
+                      color: isUser ? '#F4FFF9' : '#E8F2EC',
                       fontSize: '0.84rem',
                       lineHeight: 1.45,
                       boxShadow: 'var(--gs-shadow-xs)',
-                      border: isUser ? '1px solid var(--gs-accent)' : '1px solid var(--gs-border)',
+                      border: isUser ? '1px solid #168A65' : '1px solid #24513D',
                       whiteSpace: 'pre-wrap',
                     }}
                   >

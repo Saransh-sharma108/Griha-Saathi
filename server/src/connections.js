@@ -244,9 +244,15 @@ connectionsRouter.post('/:id/messages', requireAuth, (req, res) => {
     const { content } = req.body;
     try {
         const message = db.sendMessage(connectionId, currentUser.id, String(content || ''));
+        const thread = db.getMessages(connectionId, currentUser.id);
+        const lastMsg = thread[thread.length - 1];
+        const replyMessage = lastMsg && lastMsg.id !== message.id && (lastMsg.isDemo || lastMsg.senderId !== currentUser.id)
+            ? lastMsg
+            : undefined;
         return res.status(201).json({
             success: true,
             message,
+            replyMessage,
         });
     }
     catch (err) {

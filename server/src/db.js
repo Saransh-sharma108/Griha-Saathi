@@ -2,6 +2,35 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 export const FRESHNESS_POLICY_DAYS = 60;
+/**
+ * Robust Windows/OneDrive-safe atomic file writing.
+ * Avoids EPERM errors during rename over locked/indexed files.
+ */
+function safeWriteJsonSync(targetPath, data) {
+    try {
+        const dir = path.dirname(targetPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        const content = JSON.stringify(data, null, 2);
+        const tempPath = `${targetPath}.${Date.now()}.${Math.random().toString(36).slice(2, 6)}.tmp`;
+        fs.writeFileSync(tempPath, content, 'utf8');
+        try {
+            fs.renameSync(tempPath, targetPath);
+        }
+        catch {
+            // Windows file locking/OneDrive sync fallback: copy and remove temp
+            fs.copyFileSync(tempPath, targetPath);
+            try {
+                fs.unlinkSync(tempPath);
+            }
+            catch { }
+        }
+    }
+    catch (err) {
+        console.error(`[Database] Error writing to ${targetPath}:`, err.message);
+    }
+}
 export class InMemoryDatabase {
     users = new Map();
     otpChallenges = new Map();
@@ -21,12 +50,239 @@ export class InMemoryDatabase {
     userMessageTimestamps = new Map();
     savedSearches = new Map();
     propertyViews = new Map();
+    aiFeedback = new Map();
+    aiSessions = new Map();
     dataFilePath = path.resolve(process.cwd(), 'server/data/properties.json');
+    usersFilePath = path.resolve(process.cwd(), 'server/data/users.json');
+    challengesFilePath = path.resolve(process.cwd(), 'server/data/otp_challenges.json');
+    sessionsFilePath = path.resolve(process.cwd(), 'server/data/sessions.json');
+    auditFilePath = path.resolve(process.cwd(), 'server/data/audit_events.json');
     constructor() {
-        // STRICT DATA INTEGRITY:
+        // STRICT DATA INTEGRITY & PERSISTENCE:
         // Zero synthetic properties, zero fake users, and zero fake reviews.
-        // Real records only through genuine user interaction or verified integrations.
+        // Persistent records only through genuine user interaction or verified integrations.
+        this.loadUsersFromDisk();
+        this.ensureOwnerProfile();
+        this.loadChallengesFromDisk();
+        this.loadSessionsFromDisk();
+        this.loadAuditEventsFromDisk();
         this.loadPropertiesFromDisk();
+    }
+    loadUsersFromDisk() {
+        try {
+            if (fs.existsSync(this.usersFilePath)) {
+                const raw = fs.readFileSync(this.usersFilePath, 'utf8');
+                const list = JSON.parse(raw);
+                if (Array.isArray(list)) {
+                    for (const item of list) {
+                        if (item && item.id) {
+                            this.users.set(item.id, item);
+                        }
+                    }
+                }
+            }
+        }
+        catch (err) {
+            console.error('[Database] Error loading users from disk:', err);
+        }
+    }
+    saveUsersToDisk() {
+        safeWriteJsonSync(this.usersFilePath, Array.from(this.users.values()));
+    }
+    ensureOwnerProfile() {
+        const ownerId = 'usr_owner_saransh';
+        const ownerEmail = 'sharma108saransh@gmail.com';
+        const ownerFullName = 'Saransh Sharma';
+        // 1. Check if owner already exists by ID or email (Prevent duplicate creation)
+        let existingOwner = this.users.get(ownerId);
+        if (!existingOwner) {
+            for (const u of this.users.values()) {
+                if (u.email?.toLowerCase() === ownerEmail.toLowerCase() ||
+                    u.identifier?.toLowerCase() === ownerEmail.toLowerCase() ||
+                    u.id === ownerId) {
+                    existingOwner = u;
+                    break;
+                }
+            }
+        }
+        if (existingOwner) {
+            let modified = false;
+            if (!existingOwner.fullName || existingOwner.fullName !== ownerFullName) {
+                existingOwner.fullName = ownerFullName;
+                modified = true;
+            }
+            if (!existingOwner.email) {
+                existingOwner.email = ownerEmail;
+                modified = true;
+            }
+            if (existingOwner.role !== 'owner') {
+                existingOwner.role = 'owner';
+                existingOwner.activeRole = 'owner';
+                modified = true;
+            }
+            if (!existingOwner.roles || !existingOwner.roles.includes('owner')) {
+                existingOwner.roles = Array.from(new Set([...(existingOwner.roles || []), 'owner', 'admin']));
+                modified = true;
+            }
+            if (modified) {
+                this.saveUsersToDisk();
+            }
+            return existingOwner;
+        }
+        // 2. Prevent duplicate creation: initialize once only
+        const nowIso = new Date().toISOString();
+        const newOwner = {
+            id: ownerId,
+            identifier: ownerEmail,
+            email: ownerEmail,
+            fullName: ownerFullName,
+            role: 'owner',
+            activeRole: 'owner',
+            roles: ['owner', 'admin'],
+            phone: '',
+            preferredLanguage: 'en',
+            notificationPreferences: {
+                emailAlerts: true,
+                smsAlerts: true,
+                propertyInquiries: true,
+                securityAlerts: true,
+                savedSearchAlerts: true,
+            },
+            pinHash: '$2b$10$JjG1rIb9r8vjGMp6N5ONPOsm4u2i69wk1ivW1CtlGdPJKPbhBq3S.',
+            isPhoneVerified: false,
+            isEmailVerified: true,
+            isIdentityVerified: true,
+            failedPinAttempts: 0,
+            accountStatus: 'active',
+            createdAt: nowIso,
+            updatedAt: nowIso,
+        };
+        this.users.set(ownerId, newOwner);
+        this.saveUsersToDisk();
+        this.ensureDemoConnections(ownerId);
+        return newOwner;
+    }
+    getOwnerProfile() {
+        const owner = this.ensureOwnerProfile();
+        return {
+            id: owner.id,
+            fullName: owner.fullName || 'Saransh Sharma',
+            email: owner.email || 'sharma108saransh@gmail.com',
+            phone: owner.phone || '',
+            initials: 'SS',
+            accountType: 'Website Owner / Administrator',
+            role: owner.role,
+            activeRole: owner.activeRole,
+            roles: owner.roles,
+            preferredLanguage: owner.preferredLanguage || 'en',
+            notificationPreferences: owner.notificationPreferences || {
+                emailAlerts: true,
+                smsAlerts: true,
+                propertyInquiries: true,
+                securityAlerts: true,
+                savedSearchAlerts: true,
+            },
+            accountStatus: owner.accountStatus || 'active',
+            isIdentityVerified: true,
+            createdAt: owner.createdAt,
+            updatedAt: owner.updatedAt,
+        };
+    }
+    updateOwnerProfile(updates) {
+        const owner = this.ensureOwnerProfile();
+        const nowIso = new Date().toISOString();
+        if (updates.fullName !== undefined && typeof updates.fullName === 'string' && updates.fullName.trim()) {
+            owner.fullName = updates.fullName.trim();
+        }
+        if (updates.email !== undefined && typeof updates.email === 'string' && updates.email.trim()) {
+            owner.email = updates.email.trim().toLowerCase();
+            owner.identifier = owner.email;
+        }
+        if (updates.phone !== undefined && typeof updates.phone === 'string') {
+            owner.phone = updates.phone.trim();
+            if (owner.phone) {
+                owner.isPhoneVerified = true;
+            }
+        }
+        if (updates.preferredLanguage && ['en', 'hi', 'hi-en'].includes(updates.preferredLanguage)) {
+            owner.preferredLanguage = updates.preferredLanguage;
+        }
+        if (updates.notificationPreferences && typeof updates.notificationPreferences === 'object') {
+            owner.notificationPreferences = {
+                ...owner.notificationPreferences,
+                ...updates.notificationPreferences,
+            };
+        }
+        owner.updatedAt = nowIso;
+        this.users.set(owner.id, owner);
+        this.saveUsersToDisk();
+        return owner;
+    }
+    loadChallengesFromDisk() {
+        try {
+            if (fs.existsSync(this.challengesFilePath)) {
+                const raw = fs.readFileSync(this.challengesFilePath, 'utf8');
+                const list = JSON.parse(raw);
+                if (Array.isArray(list)) {
+                    const now = Date.now();
+                    for (const item of list) {
+                        // Keep challenges that are unexpired or verified within 1 hour
+                        if (item && item.identifier && (item.expiresAt > now || (item.verified && now - item.lastRequestedAt < 3600000))) {
+                            this.otpChallenges.set(item.identifier, item);
+                        }
+                    }
+                }
+            }
+        }
+        catch (err) {
+            console.error('[Database] Error loading OTP challenges from disk:', err);
+        }
+    }
+    saveChallengesToDisk() {
+        const now = Date.now();
+        const list = Array.from(this.otpChallenges.values()).filter((c) => c.expiresAt > now || (c.verified && now - c.lastRequestedAt < 3600000));
+        safeWriteJsonSync(this.challengesFilePath, list);
+    }
+    loadSessionsFromDisk() {
+        try {
+            if (fs.existsSync(this.sessionsFilePath)) {
+                const raw = fs.readFileSync(this.sessionsFilePath, 'utf8');
+                const list = JSON.parse(raw);
+                if (Array.isArray(list)) {
+                    const now = Date.now();
+                    for (const item of list) {
+                        if (item && item.token && item.expiresAt > now) {
+                            this.sessions.set(item.token, item);
+                        }
+                    }
+                }
+            }
+        }
+        catch (err) {
+            console.error('[Database] Error loading sessions from disk:', err);
+        }
+    }
+    saveSessionsToDisk() {
+        const now = Date.now();
+        const list = Array.from(this.sessions.values()).filter((s) => s.expiresAt > now);
+        safeWriteJsonSync(this.sessionsFilePath, list);
+    }
+    loadAuditEventsFromDisk() {
+        try {
+            if (fs.existsSync(this.auditFilePath)) {
+                const raw = fs.readFileSync(this.auditFilePath, 'utf8');
+                const list = JSON.parse(raw);
+                if (Array.isArray(list)) {
+                    this.auditEvents = list;
+                }
+            }
+        }
+        catch (err) {
+            console.error('[Database] Error loading audit events from disk:', err);
+        }
+    }
+    saveAuditEventsToDisk() {
+        safeWriteJsonSync(this.auditFilePath, this.auditEvents.slice(-1000));
     }
     loadPropertiesFromDisk() {
         try {
@@ -91,7 +347,9 @@ export class InMemoryDatabase {
             id: user.id,
             identifier: this.maskIdentifier(user.identifier),
             phone: user.phone ? this.maskIdentifier(user.phone) : undefined,
+            normalizedPhone: user.normalizedPhone ? `+91 ${this.maskIdentifier(user.phone || user.normalizedPhone)}` : undefined,
             email: user.email ? this.maskIdentifier(user.email) : undefined,
+            normalizedEmail: user.normalizedEmail ? this.maskIdentifier(user.normalizedEmail) : undefined,
             role: activeRole,
             activeRole: activeRole,
             roles: roles,
@@ -105,10 +363,13 @@ export class InMemoryDatabase {
                 securityAlerts: true,
                 savedSearchAlerts: true,
             },
-            isPhoneVerified: user.isPhoneVerified,
-            isEmailVerified: user.isEmailVerified,
-            isIdentityVerified: user.isIdentityVerified,
-            isDeactivated: user.isDeactivated,
+            isPhoneVerified: Boolean(user.isPhoneVerified),
+            isEmailVerified: Boolean(user.isEmailVerified),
+            isIdentityVerified: Boolean(user.isIdentityVerified),
+            isDeactivated: Boolean(user.isDeactivated),
+            accountStatus: user.accountStatus || (user.isDeactivated ? 'deactivated' : 'active'),
+            termsAcceptedAt: user.termsAcceptedAt,
+            otpPreference: user.otpPreference,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
             lastLoginAt: user.lastLoginAt,
@@ -121,8 +382,66 @@ export class InMemoryDatabase {
             return null;
         return this.toPublicProfile(user);
     }
+    findUserByPhone(phone) {
+        if (!phone)
+            return undefined;
+        const cleanDigits = phone.replace(/\D/g, '');
+        const tenDigit = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
+        if (!tenDigit || tenDigit.length < 10)
+            return undefined;
+        for (const user of this.users.values()) {
+            if (user.phone) {
+                const uDigits = user.phone.replace(/\D/g, '');
+                if (uDigits.endsWith(tenDigit))
+                    return user;
+            }
+            if (user.normalizedPhone) {
+                const uDigits = user.normalizedPhone.replace(/\D/g, '');
+                if (uDigits.endsWith(tenDigit))
+                    return user;
+            }
+            if (user.identifier && !user.identifier.includes('@')) {
+                const uDigits = user.identifier.replace(/\D/g, '');
+                if (uDigits.endsWith(tenDigit))
+                    return user;
+            }
+        }
+        return undefined;
+    }
+    findUserByEmail(email) {
+        if (!email || typeof email !== 'string')
+            return undefined;
+        const norm = email.trim().toLowerCase();
+        if (!norm || !norm.includes('@'))
+            return undefined;
+        for (const user of this.users.values()) {
+            if (user.email && user.email.trim().toLowerCase() === norm)
+                return user;
+            if (user.normalizedEmail && user.normalizedEmail.trim().toLowerCase() === norm)
+                return user;
+            if (user.identifier && user.identifier.trim().toLowerCase() === norm)
+                return user;
+        }
+        return undefined;
+    }
     findUserByIdentifier(identifier) {
+        if (!identifier || typeof identifier !== 'string')
+            return undefined;
         const raw = identifier.trim().toLowerCase();
+        // Direct ID match
+        const directUser = this.users.get(raw);
+        if (directUser)
+            return directUser;
+        // Check email match
+        if (raw.includes('@')) {
+            const emailUser = this.findUserByEmail(raw);
+            if (emailUser)
+                return emailUser;
+        }
+        // Check phone match
+        const phoneUser = this.findUserByPhone(raw);
+        if (phoneUser)
+            return phoneUser;
         const cleanPhone = raw.replace(/[\s-+]/g, '');
         for (const user of this.users.values()) {
             const userIdent = user.identifier.toLowerCase();
@@ -147,6 +466,7 @@ export class InMemoryDatabase {
             timestamp: new Date().toISOString(),
         };
         this.auditEvents.push(event);
+        this.saveAuditEventsToDisk();
         return event;
     }
     getUserAuditEvents(userId, limit = 20) {
@@ -947,6 +1267,42 @@ export class InMemoryDatabase {
                 isPhoneVerified: recipientUser.isPhoneVerified,
             };
         }
+        // Pass demo styling and metadata
+        if (conn.isDemo) {
+            clone.isDemo = true;
+            if (conn.senderId === 'usr_demo_aryan' || conn.recipientId === 'usr_demo_aryan') {
+                clone.onlineStatus = 'online';
+                clone.lastActiveText = 'Online now';
+                clone.avatarBg = '#2563EB';
+                clone.avatarInitials = 'AR';
+            }
+            else if (conn.senderId === 'usr_demo_madhav' || conn.recipientId === 'usr_demo_madhav') {
+                clone.onlineStatus = 'offline';
+                clone.lastActiveText = 'Active 15m ago';
+                clone.avatarBg = '#D97706';
+                clone.avatarInitials = 'MA';
+            }
+            else if (conn.senderId === 'usr_demo_saksham' || conn.recipientId === 'usr_demo_saksham') {
+                clone.onlineStatus = 'offline';
+                clone.lastActiveText = 'Active 1h ago';
+                clone.avatarBg = '#059669';
+                clone.avatarInitials = 'SA';
+            }
+            if (clone.senderProfile && clone.senderProfile.id.startsWith('usr_demo_')) {
+                clone.senderProfile.isDemo = true;
+                clone.senderProfile.onlineStatus = clone.onlineStatus;
+                clone.senderProfile.lastActiveText = clone.lastActiveText;
+                clone.senderProfile.avatarBg = clone.avatarBg;
+                clone.senderProfile.avatarInitials = clone.avatarInitials;
+            }
+            if (clone.recipientProfile && clone.recipientProfile.id.startsWith('usr_demo_')) {
+                clone.recipientProfile.isDemo = true;
+                clone.recipientProfile.onlineStatus = clone.onlineStatus;
+                clone.recipientProfile.lastActiveText = clone.lastActiveText;
+                clone.recipientProfile.avatarBg = clone.avatarBg;
+                clone.recipientProfile.avatarInitials = clone.avatarInitials;
+            }
+        }
         // Last message
         const thread = this.messages.filter((m) => m.connectionId === conn.id);
         if (thread.length > 0) {
@@ -958,7 +1314,212 @@ export class InMemoryDatabase {
         }
         return clone;
     }
+    ensureDemoConnections(userId) {
+        if (!userId || userId.startsWith('usr_demo_'))
+            return;
+        // 1. Seed demo user records
+        const demoUsers = [
+            {
+                id: 'usr_demo_aryan',
+                fullName: 'Aryan',
+                identifier: 'aryan.inquiry@grihasaathi.demo',
+                role: 'tenant',
+                activeRole: 'tenant',
+                roles: ['tenant'],
+                isPhoneVerified: false,
+                isEmailVerified: false,
+                isIdentityVerified: false,
+            },
+            {
+                id: 'usr_demo_madhav',
+                fullName: 'Madhav',
+                identifier: 'madhav.inquiry@grihasaathi.demo',
+                role: 'tenant',
+                activeRole: 'tenant',
+                roles: ['tenant'],
+                isPhoneVerified: false,
+                isEmailVerified: false,
+                isIdentityVerified: false,
+            },
+            {
+                id: 'usr_demo_saksham',
+                fullName: 'Saksham',
+                identifier: 'saksham.inquiry@grihasaathi.demo',
+                role: 'tenant',
+                activeRole: 'tenant',
+                roles: ['tenant'],
+                isPhoneVerified: false,
+                isEmailVerified: false,
+                isIdentityVerified: false,
+            },
+        ];
+        for (const du of demoUsers) {
+            if (!this.users.has(du.id)) {
+                this.users.set(du.id, {
+                    ...du,
+                    pinHash: '$2a$10$demo_not_for_login_hash_placeholder',
+                    failedPinAttempts: 0,
+                    preferredLanguage: 'en',
+                    notificationPreferences: {
+                        emailAlerts: true,
+                        smsAlerts: false,
+                        propertyInquiries: true,
+                        securityAlerts: true,
+                    },
+                    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+                    updatedAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+                });
+            }
+        }
+        // 2. Resolve target property
+        let propId = 'prop_gurugram_sector57';
+        if (!this.properties.has(propId)) {
+            const firstKey = this.properties.keys().next().value;
+            if (firstKey)
+                propId = firstKey;
+        }
+        // 3. Seed demo connections and initial messages
+        const now = Date.now();
+        const demoConfigs = [
+            {
+                contactId: 'usr_demo_aryan',
+                connId: `conn_demo_aryan_${userId}`,
+                name: 'Aryan',
+                initialMsg: 'Hi! I am interested in discussing a property listing.',
+                avatarBg: '#2563EB',
+                avatarInitials: 'AR',
+                onlineStatus: 'online',
+                lastActiveText: 'Online now',
+                timeOffsetMs: 1000 * 60 * 15, // 15 mins ago
+            },
+            {
+                contactId: 'usr_demo_madhav',
+                connId: `conn_demo_madhav_${userId}`,
+                name: 'Madhav',
+                initialMsg: 'Hello! Can you share more details about the property?',
+                avatarBg: '#D97706',
+                avatarInitials: 'MA',
+                onlineStatus: 'offline',
+                lastActiveText: 'Active 15m ago',
+                timeOffsetMs: 1000 * 60 * 45, // 45 mins ago
+            },
+            {
+                contactId: 'usr_demo_saksham',
+                connId: `conn_demo_saksham_${userId}`,
+                name: 'Saksham',
+                initialMsg: 'Hi! I would like to know about the availability.',
+                avatarBg: '#059669',
+                avatarInitials: 'SA',
+                onlineStatus: 'offline',
+                lastActiveText: 'Active 1h ago',
+                timeOffsetMs: 1000 * 60 * 120, // 2 hours ago
+            },
+        ];
+        for (const cfg of demoConfigs) {
+            const createdAt = new Date(now - cfg.timeOffsetMs).toISOString();
+            if (!this.connections.has(cfg.connId)) {
+                const conn = {
+                    id: cfg.connId,
+                    propertyId: propId,
+                    senderId: cfg.contactId,
+                    tenantId: cfg.contactId,
+                    recipientId: userId,
+                    ownerId: userId,
+                    initialMessage: cfg.initialMsg,
+                    status: 'accepted',
+                    createdAt,
+                    updatedAt: createdAt,
+                    isDemo: true,
+                    onlineStatus: cfg.onlineStatus,
+                    lastActiveText: cfg.lastActiveText,
+                    avatarBg: cfg.avatarBg,
+                    avatarInitials: cfg.avatarInitials,
+                };
+                this.connections.set(cfg.connId, conn);
+            }
+            // Check initial message in thread
+            const hasMsg = this.messages.some((m) => m.connectionId === cfg.connId);
+            if (!hasMsg) {
+                this.messages.push({
+                    id: `msg_${cfg.connId}_1`,
+                    connectionId: cfg.connId,
+                    senderId: cfg.contactId,
+                    recipientId: userId,
+                    content: cfg.initialMsg,
+                    timestamp: createdAt,
+                    isRead: false,
+                    isDemo: true,
+                });
+            }
+        }
+    }
+    generateDemoReply(contactId, userMessage) {
+        const lower = userMessage.toLowerCase();
+        if (contactId === 'usr_demo_aryan') {
+            if (lower.includes('rent') ||
+                lower.includes('deposit') ||
+                lower.includes('price') ||
+                lower.includes('cost') ||
+                lower.includes('budget') ||
+                lower.includes('maintenance')) {
+                return '[Demo Reply] Thank you! That fits well. Are the maintenance and utility bills included in the monthly rent, or settled separately? Also, is the security deposit negotiable?';
+            }
+            if (lower.includes('visit') ||
+                lower.includes('see') ||
+                lower.includes('time') ||
+                lower.includes('tomorrow') ||
+                lower.includes('weekend')) {
+                return '[Demo Reply] Perfect, thank you! I can make time this weekend or tomorrow evening. Please confirm the exact tower/unit directions whenever convenient.';
+            }
+            if (lower.includes('available') ||
+                lower.includes('ready') ||
+                lower.includes('move') ||
+                lower.includes('date')) {
+                return '[Demo Reply] Glad to hear that! What would be the standard lock-in period and notice policy under the agreement?';
+            }
+            return '[Demo Reply] Thank you for getting back to me! Could you share the monthly rent, security deposit terms, and lease duration? I am looking to finalize shortly.';
+        }
+        if (contactId === 'usr_demo_madhav') {
+            if (lower.includes('parking') || lower.includes('car') || lower.includes('vehicle')) {
+                return '[Demo Reply] Understood! Is the reserved parking covered or open? Also, is there adequate visitor parking in the society?';
+            }
+            if (lower.includes('amenit') ||
+                lower.includes('gym') ||
+                lower.includes('power') ||
+                lower.includes('backup') ||
+                lower.includes('lift')) {
+                return '[Demo Reply] Great to know! Is the power backup 100% full load including ACs, or limited to light points?';
+            }
+            if (lower.includes('visit') || lower.includes('meet') || lower.includes('schedule')) {
+                return '[Demo Reply] I appreciate that. I can arrange an inspection visit around 11:30 AM or 4:00 PM. Would that work for you?';
+            }
+            return '[Demo Reply] Thank you for the details. Does the property include reserved car parking and power backup? Also, what would be the earliest move-in date?';
+        }
+        if (contactId === 'usr_demo_saksham') {
+            if (lower.includes('visit') ||
+                lower.includes('weekend') ||
+                lower.includes('sunday') ||
+                lower.includes('saturday')) {
+                return '[Demo Reply] Excellent! Would Saturday morning between 10:30 AM and 12:00 PM work for a family walkthrough?';
+            }
+            if (lower.includes('family') ||
+                lower.includes('kid') ||
+                lower.includes('child') ||
+                lower.includes('neighbor') ||
+                lower.includes('area')) {
+                return '[Demo Reply] That is very reassuring. We have young children, so safety and proximity to reputed schools and grocery stores are our top priorities.';
+            }
+            if (lower.includes('furnish') || lower.includes('kitchen') || lower.includes('appliance')) {
+                return '[Demo Reply] Thanks! Are the kitchen appliances (chimney/hob/geyser) under active maintenance contracts?';
+            }
+            return '[Demo Reply] Thanks for the details! Would it be possible to schedule a visit this weekend? Also, is the neighborhood quiet and suitable for families?';
+        }
+        return '[Demo Reply] Thank you for your response! I am reviewing the listing details and will follow up shortly.';
+    }
     getUserConnections(userId) {
+        if (userId && !userId.startsWith('usr_demo_')) {
+            this.ensureDemoConnections(userId);
+        }
         const list = [];
         for (const conn of this.connections.values()) {
             const isParty = conn.senderId === userId ||
@@ -976,6 +1537,9 @@ export class InMemoryDatabase {
         });
     }
     getConnection(connectionId, actorId) {
+        if (actorId && connectionId.startsWith('conn_demo_')) {
+            this.ensureDemoConnections(actorId);
+        }
         const conn = this.connections.get(connectionId);
         if (!conn)
             return null;
@@ -1102,6 +1666,27 @@ export class InMemoryDatabase {
         // In-app notification for recipient
         const snippet = trimmed.length > 60 ? `${trimmed.slice(0, 57)}...` : trimmed;
         this.addNotification(recipientId, 'New Message', snippet, 'new_message', conn.propertyId, connectionId);
+        // If demo connection, mark user's message as read and generate contextual automated demo reply
+        if (conn.isDemo) {
+            message.isRead = true;
+            message.readAt = new Date().toISOString();
+            const replyContent = this.generateDemoReply(recipientId, trimmed);
+            const replyTimestamp = new Date(Date.now() + 300).toISOString();
+            const replyMessage = {
+                id: `msg_demo_${crypto.randomUUID().slice(0, 8)}`,
+                connectionId,
+                senderId: recipientId,
+                recipientId: senderId,
+                content: replyContent,
+                timestamp: replyTimestamp,
+                isRead: false,
+                isDemo: true,
+            };
+            this.messages.push(replyMessage);
+            conn.updatedAt = replyTimestamp;
+            this.connections.set(connectionId, conn);
+            this.addNotification(senderId, 'Demo Reply Received', replyContent, 'new_message', conn.propertyId, connectionId);
+        }
         return message;
     }
     getMessages(connectionId, userId) {
@@ -1731,8 +2316,10 @@ export class InMemoryDatabase {
         }
         const now = new Date().toISOString();
         user.isDeactivated = true;
+        user.accountStatus = 'deactivated';
         user.updatedAt = now;
         this.users.set(userId, user);
+        this.saveUsersToDisk();
         // If owner, withdraw active properties from public discovery
         for (const p of this.properties.values()) {
             if (p.ownerId === userId && p.submissionStatus === 'approved') {

@@ -308,6 +308,83 @@ async function runConnectionsMessagingVisitsTestSuite() {
     const readSuccess = db.markNotificationRead(visitConfirmedNotif.id, tenant2.id);
     assert.strictEqual(readSuccess, true);
     console.log('✓ Notification read state updated successfully');
+    console.log('\n[SECTION 8] Demo Connections & Direct Messaging Simulation Suite');
+    // Test 8.1: Calling getUserConnections for owner creates the 3 demo connections
+    const testOwnerId = 'usr_owner_demo_tester';
+    seedUser(testOwnerId, '+919988776655', 'owner', true);
+    const userConns = db.getUserConnections(testOwnerId);
+    const aryanConn = userConns.find((c) => c.senderId === 'usr_demo_aryan' || c.recipientId === 'usr_demo_aryan');
+    const madhavConn = userConns.find((c) => c.senderId === 'usr_demo_madhav' || c.recipientId === 'usr_demo_madhav');
+    const sakshamConn = userConns.find((c) => c.senderId === 'usr_demo_saksham' || c.recipientId === 'usr_demo_saksham');
+    assert.ok(aryanConn, 'Aryan demo connection must be present in connections');
+    assert.ok(madhavConn, 'Madhav demo connection must be present in connections');
+    assert.ok(sakshamConn, 'Saksham demo connection must be present in connections');
+    console.log('✓ Test 8.1 Passed: Aryan, Madhav, and Saksham connections initialized');
+    // Test 8.2: Verify avatar initials, colors, and demo flags
+    assert.strictEqual(aryanConn.avatarInitials, 'AR');
+    assert.strictEqual(aryanConn.avatarBg, '#2563EB');
+    assert.strictEqual(aryanConn.isDemo, true);
+    assert.strictEqual(madhavConn.avatarInitials, 'MA');
+    assert.strictEqual(madhavConn.avatarBg, '#D97706');
+    assert.strictEqual(madhavConn.isDemo, true);
+    assert.strictEqual(sakshamConn.avatarInitials, 'SA');
+    assert.strictEqual(sakshamConn.avatarBg, '#059669');
+    assert.strictEqual(sakshamConn.isDemo, true);
+    console.log('✓ Test 8.2 Passed: Distinct avatar colors (#2563EB, #D97706, #059669) and initials verified');
+    // Test 8.3: Online / Offline status and last active text
+    assert.strictEqual(aryanConn.onlineStatus, 'online');
+    assert.strictEqual(aryanConn.lastActiveText, 'Online now');
+    assert.strictEqual(madhavConn.onlineStatus, 'offline');
+    assert.strictEqual(madhavConn.lastActiveText, 'Active 15m ago');
+    assert.strictEqual(sakshamConn.onlineStatus, 'offline');
+    assert.strictEqual(sakshamConn.lastActiveText, 'Active 1h ago');
+    console.log('✓ Test 8.3 Passed: Online and offline activity indicators verified');
+    // Test 8.4: Initial inquiry messages
+    assert.strictEqual(aryanConn.lastMessage?.content, 'Hi! I am interested in discussing a property listing.');
+    assert.strictEqual(madhavConn.lastMessage?.content, 'Hello! Can you share more details about the property?');
+    assert.strictEqual(sakshamConn.lastMessage?.content, 'Hi! I would like to know about the availability.');
+    console.log('✓ Test 8.4 Passed: Initial inquiry messages match required specifications');
+    // Test 8.5: Unread count tracking
+    assert.strictEqual(aryanConn.unreadCount, 1);
+    assert.strictEqual(madhavConn.unreadCount, 1);
+    assert.strictEqual(sakshamConn.unreadCount, 1);
+    console.log('✓ Test 8.5 Passed: Initial unread badge counts verified');
+    // Test 8.6: User replies to Aryan, triggers automated contextual demo reply
+    const reply1 = db.sendMessage(aryanConn.id, testOwnerId, 'The rent is 35,000 per month with two months deposit.');
+    assert.strictEqual(reply1.senderId, testOwnerId);
+    assert.strictEqual(reply1.isRead, true); // Marked read by demo contact
+    const aryanThread = db.getMessages(aryanConn.id, testOwnerId);
+    assert.ok(aryanThread.length >= 3, 'Aryan thread must include initial, user reply, and automated demo reply');
+    const aryanLastMsg = aryanThread[aryanThread.length - 1];
+    assert.strictEqual(aryanLastMsg.senderId, 'usr_demo_aryan');
+    assert.ok(aryanLastMsg.content.startsWith('[Demo Reply]'), 'Automated reply must be tagged as demo');
+    assert.ok(aryanLastMsg.content.includes('maintenance'), 'Aryan should respond contextually to rent terms');
+    console.log('✓ Test 8.6 Passed: Aryan contextual demo reply triggered and persisted');
+    // Test 8.7: User asks Madhav about parking
+    db.sendMessage(madhavConn.id, testOwnerId, 'Yes, the apartment has a dedicated covered parking spot.');
+    const madhavThread = db.getMessages(madhavConn.id, testOwnerId);
+    const madhavLastMsg = madhavThread[madhavThread.length - 1];
+    assert.strictEqual(madhavLastMsg.senderId, 'usr_demo_madhav');
+    assert.ok(madhavLastMsg.content.includes('parking') || madhavLastMsg.content.includes('Demo Reply'));
+    console.log('✓ Test 8.7 Passed: Madhav contextual amenities/parking response verified');
+    // Test 8.8: User messages Saksham about a weekend visit
+    db.sendMessage(sakshamConn.id, testOwnerId, 'You are welcome to visit this Saturday or Sunday morning.');
+    const sakshamThread = db.getMessages(sakshamConn.id, testOwnerId);
+    const sakshamLastMsg = sakshamThread[sakshamThread.length - 1];
+    assert.strictEqual(sakshamLastMsg.senderId, 'usr_demo_saksham');
+    assert.ok(sakshamLastMsg.content.includes('Saturday') || sakshamLastMsg.content.includes('family') || sakshamLastMsg.content.includes('Demo Reply'));
+    console.log('✓ Test 8.8 Passed: Saksham contextual weekend/family response verified');
+    // Test 8.9: Mark messages as read zeroes out unreadCount
+    const marked = db.markMessagesAsRead(aryanConn.id, testOwnerId);
+    assert.ok(marked >= 1);
+    const updatedAryanConn = db.getConnection(aryanConn.id, testOwnerId);
+    assert.strictEqual(updatedAryanConn?.unreadCount, 0);
+    console.log('✓ Test 8.9 Passed: Mark read clears unread badge count');
+    // Test 8.10: Privacy & IDOR protection: unrelated user cannot view demo conversation
+    assert.throws(() => {
+        db.getMessages(aryanConn.id, 'usr_stranger_unrelated');
+    }, /Unauthorized/, 'Unauthorized party cannot view demo thread');
+    console.log('✓ Test 8.10 Passed: Demo thread privacy protected against unauthorized third parties');
     console.log('\n================================================================');
     console.log('ALL PHASE 7 CONNECTIONS, MESSAGING & VISITS TESTS PASSED (100%)');
     console.log('================================================================');

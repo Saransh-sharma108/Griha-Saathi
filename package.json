@@ -5,15 +5,19 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm.cmd run dev:all",
-    "dev:all": "concurrently \"npm.cmd run dev:server\" \"npm.cmd run dev:client\"",
+    "dev": "npm run dev:all",
+    "dev:all": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "vite --config vite.config.ts",
     "dev:server": "tsx watch server/src/index.ts",
     "start": "node server/src/index.js",
-    "build": "npm.cmd run build:client && npm.cmd run build:server",
+    "build": "npm run build:client && npm run build:server",
     "build:client": "tsc -b && vite build",
     "build:server": "tsc -p server/tsconfig.json",
+    "typecheck": "tsc --noEmit",
     "test:auth": "tsx server/src/tests/auth.test.ts",
+    "test:otp-audit": "tsx server/src/tests/otp_delivery_audit.test.ts",
+    "test:isolation": "tsx server/src/tests/delivery_isolation.test.ts",
+    "test:persistent-auth": "tsx server/src/tests/persistent_auth.test.ts",
     "test:search": "tsx server/src/tests/search.test.ts",
     "test:demo-search": "tsx client/src/data/demoProperties.test.ts",
     "test:listing": "tsx server/src/tests/listing.test.ts",
@@ -24,7 +28,9 @@
     "test:homedna": "tsx server/src/tests/homedna.test.ts",
     "test:e2e": "tsx server/src/tests/e2e_integration_security.test.ts",
     "test:real-data": "tsx server/src/tests/real_property_data_engine.test.ts",
-    "test": "npm.cmd run test:auth && npm.cmd run test:search && npm.cmd run test:demo-search && npm.cmd run test:listing && npm.cmd run test:verification && npm.cmd run test:connections && npm.cmd run test:ai && npm.cmd run test:dashboard && npm.cmd run test:homedna && npm.cmd run test:e2e && npm.cmd run test:real-data"
+    "test:five-region": "tsx client/src/data/fiveRegionInventory.test.ts",
+    "test:owner-profile": "tsx server/src/tests/owner_profile_system.test.ts",
+    "test": "npm run test:auth && npm run test:isolation && npm run test:persistent-auth && npm run test:search && npm run test:demo-search && npm run test:five-region && npm run test:listing && npm run test:verification && npm run test:connections && npm run test:ai && npm run test:dashboard && npm run test:homedna && npm run test:e2e && npm run test:real-data && npm run test:owner-profile"
   },
   "keywords": [
     "rental",

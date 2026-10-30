@@ -1061,15 +1061,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <div className="gs-compact-safety-strip" style={{ marginBottom: '2rem', justifyContent: 'space-between', flexWrap: 'wrap', padding: '0.85rem 1.25rem' }}>
             <div>
               <div style={{ fontWeight: 700, color: '#78350F', fontSize: '0.92rem', marginBottom: '0.15rem' }}>
-                Guest Explorer Mode Active
+                Profile Explorer Mode
               </div>
               <div style={{ fontSize: '0.82rem', color: '#92400E' }}>
-                You are previewing role-based layouts. Authenticate to manage your verified properties, active roles, and account security.
+                Manage your verified properties, active roles, and owner profile settings.
               </div>
             </div>
             <button onClick={onOpenAuth} className="gs-btn gs-btn-primary gs-btn-sm" style={{ padding: '0.45rem 0.95rem' }}>
-              <Lock size={14} />
-              <span>Sign In with PIN / Register</span>
+              <User size={14} />
+              <span>Personal Profile & Settings</span>
             </button>
           </div>
         )}
@@ -2042,12 +2042,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             {!user ? (
               <div className="gs-card" style={{ textAlign: 'center', padding: '3rem 1.5rem' }}>
                 <Lock size={36} color="var(--gs-forest-mid)" style={{ margin: '0 auto 0.75rem' }} />
-                <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>Sign In Required</h3>
+                <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>Profile Access</h3>
                 <p style={{ fontSize: '0.9rem', color: 'var(--gs-text-muted)', marginBottom: '1.25rem' }}>
-                  Please authenticate with your PIN to view your saved property listings.
+                  Open your profile to manage your saved properties and preferences.
                 </p>
                 <button onClick={onOpenAuth} className="gs-btn gs-btn-primary gs-btn-sm">
-                  Sign In / Register
+                  Personal Profile & Settings
                 </button>
               </div>
             ) : savedLoading ? (

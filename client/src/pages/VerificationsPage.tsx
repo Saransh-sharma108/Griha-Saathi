@@ -435,25 +435,73 @@ export const VerificationsPage: React.FC<VerificationsPageProps> = ({ language }
           </div>
         </div>
 
-        {/* Level B: Streamlined Anti-Fraud Quarantine Strip */}
+        {/* Anti-Fraud Information Panel */}
         <div 
-          className="gs-surface-integrated" 
+          className="gs-anti-fraud-banner" 
           style={{ 
-            backgroundColor: 'rgba(235, 242, 237, 0.92)', 
-            borderColor: 'var(--gs-border)', 
-            padding: '1.25rem 1.5rem',
+            backgroundColor: '#10291F', 
+            border: '1px solid #176B50', 
+            borderRadius: 'var(--gs-radius-lg)',
+            padding: '1.35rem 1.65rem',
             display: 'flex',
             alignItems: 'center',
-            gap: '1rem',
-            flexWrap: 'wrap'
+            gap: '1.25rem',
+            flexWrap: 'wrap',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(53, 214, 160, 0.12)',
+            position: 'relative',
+            overflow: 'hidden',
           }}
         >
-          <Flag size={22} color="var(--gs-forest-primary)" style={{ flexShrink: 0 }} />
+          {/* Subtle Emerald Leading Accent Line */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: '4px',
+              backgroundColor: '#35D6A0',
+            }}
+          />
+
+          <div
+            style={{
+              width: 46,
+              height: 46,
+              borderRadius: '50%',
+              backgroundColor: 'rgba(53, 214, 160, 0.12)',
+              border: '1px solid rgba(53, 214, 160, 0.28)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Flag size={22} color="#35D6A0" style={{ flexShrink: 0 }} />
+          </div>
+
           <div style={{ flex: 1, minWidth: '260px' }}>
-            <strong style={{ color: 'var(--gs-forest-deep)', fontSize: '0.96rem' }}>
-              Suspect a Fake Listing or Inaccurate Details?
-            </strong>
-            <p style={{ fontSize: '0.86rem', color: 'var(--gs-forest-primary)', margin: '0.2rem 0 0', lineHeight: 1.5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '0.3rem' }}>
+              <strong style={{ color: '#F2FFF7', fontSize: '1.02rem', fontWeight: 700, letterSpacing: '-0.01em' }}>
+                Suspect a Fake Listing or Inaccurate Details?
+              </strong>
+              <span
+                style={{
+                  backgroundColor: 'rgba(214, 170, 85, 0.14)',
+                  color: '#D6AA55',
+                  border: '1px solid rgba(214, 170, 85, 0.3)',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  padding: '0.12rem 0.5rem',
+                  borderRadius: '4px',
+                  letterSpacing: '0.4px',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Zero-Tolerance
+              </span>
+            </div>
+            <p style={{ fontSize: '0.88rem', color: '#B8D8C8', margin: 0, lineHeight: 1.55 }}>
               Griha Saathi maintains a strict anti-fraud policy. Any user can report a listing for discrepancies in photos, rent, or ownership. Reported listings are immediately quarantined for re-inspection by our compliance staff.
             </p>
           </div>

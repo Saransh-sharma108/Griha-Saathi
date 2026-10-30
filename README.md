@@ -1,5 +1,5 @@
 # 🏡 Griha Saathi (गृह साथी)
-### Trustworthy, Cadastral-Verified Rental Housing Discovery Platform
+### Transparent Rental Search & First-Party Listing Platform
 
 Griha Saathi is a rental-search and verification platform for Northern India (Delhi, Haryana, Punjab, Himachal Pradesh, and Jammu & Kashmir). Find Property opens an explicitly labeled local synthetic demo catalog; it is isolated from approved first-party submissions and is never represented as live rental inventory.
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Header, NavSection } from './components/Header';
 import { Footer } from './components/Footer';
-import { AuthModal } from './components/AuthModal';
+import { OwnerProfileModal } from './components/OwnerProfileModal';
 import { HomePage } from './pages/HomePage';
 import { FindPropertyPage } from './pages/FindPropertyPage';
 import { VerificationsPage } from './pages/VerificationsPage';
@@ -43,7 +43,7 @@ export const App: React.FC = () => {
   const [language, setLanguage] = useState<SupportedLanguage>(getInitialLanguage);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isOwnerProfileModalOpen, setIsOwnerProfileModalOpen] = useState(false);
 
   const handleLanguageChange = (newLang: SupportedLanguage) => {
     setLanguage(newLang);
@@ -87,48 +87,93 @@ export const App: React.FC = () => {
     maxRent: '',
   });
 
-  // Verify existing session on load if session token is in sessionStorage
+  // Initialize Website Owner Profile and active session from persistent database
   useEffect(() => {
-    const savedToken = sessionStorage.getItem('gs_session_token');
-    if (savedToken) {
-      fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${savedToken}` },
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success && data.user) {
-            setUser(data.user);
-            setToken(savedToken);
-          } else {
-            sessionStorage.removeItem('gs_session_token');
+    const savedToken = localStorage.getItem('gs_session_token') || sessionStorage.getItem('gs_session_token');
+    fetch('/api/owner/profile', {
+      credentials: 'include',
+      headers: savedToken ? { Authorization: `Bearer ${savedToken}` } : undefined,
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.profile) {
+          const ownerUser: UserProfile = {
+            id: data.profile.id,
+            identifier: data.profile.email,
+            email: data.profile.email,
+            phone: data.profile.phone,
+            fullName: data.profile.fullName,
+            role: data.profile.role || 'owner',
+            activeRole: data.profile.activeRole || 'owner',
+            roles: data.profile.roles || ['owner', 'admin'],
+            preferredLanguage: data.profile.preferredLanguage || 'en',
+            notificationPreferences: data.profile.notificationPreferences,
+            isPhoneVerified: Boolean(data.profile.phone),
+            isEmailVerified: true,
+            isIdentityVerified: true,
+            accountStatus: 'active',
+            accountType: data.profile.accountType,
+            createdAt: data.profile.createdAt,
+            updatedAt: data.profile.updatedAt,
+          };
+          setUser(ownerUser);
+          const activeTok = data.sessionToken || savedToken;
+          if (activeTok) {
+            setToken(activeTok);
+            localStorage.setItem('gs_session_token', activeTok);
+            sessionStorage.setItem('gs_session_token', activeTok);
           }
-        })
-        .catch(() => {
-          sessionStorage.removeItem('gs_session_token');
-        });
-    }
+        }
+      })
+      .catch((err) => {
+        console.warn('[App] Owner profile load error:', err);
+      });
   }, []);
 
-  const handleAuthSuccess = (authenticatedUser: UserProfile, sessionToken: string) => {
-    setUser(authenticatedUser);
-    setToken(sessionToken);
-    sessionStorage.setItem('gs_session_token', sessionToken);
+  const handleProfileUpdated = (updatedUser: UserProfile) => {
+    setUser(updatedUser);
   };
 
   const handleSignOut = async () => {
-    if (token) {
-      try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch (e) {
-        // Ignore network errors on signout
-      }
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+    } catch (e) {
+      // Ignore network errors on signout
     }
-    setUser(null);
-    setToken(null);
-    sessionStorage.removeItem('gs_session_token');
+    // Re-synchronize clean owner profile from database
+    fetch('/api/owner/profile')
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.success && d.profile) {
+          setUser({
+            id: d.profile.id,
+            identifier: d.profile.email,
+            email: d.profile.email,
+            phone: d.profile.phone,
+            fullName: d.profile.fullName,
+            role: d.profile.role || 'owner',
+            activeRole: d.profile.activeRole || 'owner',
+            roles: d.profile.roles || ['owner', 'admin'],
+            preferredLanguage: d.profile.preferredLanguage || 'en',
+            notificationPreferences: d.profile.notificationPreferences,
+            isPhoneVerified: Boolean(d.profile.phone),
+            isEmailVerified: true,
+            isIdentityVerified: true,
+            accountStatus: 'active',
+            accountType: d.profile.accountType,
+            createdAt: d.profile.createdAt,
+            updatedAt: d.profile.updatedAt,
+          });
+          if (d.sessionToken) {
+            setToken(d.sessionToken);
+            localStorage.setItem('gs_session_token', d.sessionToken);
+          }
+        }
+      });
   };
 
   const handleHomeSearch = (filters: { state: string; propertyType: string; maxRent: string; city?: string; locality?: string }) => {
@@ -173,7 +218,8 @@ export const App: React.FC = () => {
         onLanguageChange={handleLanguageChange}
         user={user}
         token={token}
-        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenProfile={() => setIsOwnerProfileModalOpen(true)}
+        onOpenAuth={() => setIsOwnerProfileModalOpen(true)}
         onSignOut={handleSignOut}
         onUserUpdate={setUser}
       />
@@ -195,7 +241,7 @@ export const App: React.FC = () => {
             onNavigate={handleNavigate}
             user={user}
             token={token}
-            onOpenAuth={() => setIsAuthModalOpen(true)}
+            onOpenAuth={() => setIsOwnerProfileModalOpen(true)}
           />
         )}
 
@@ -207,7 +253,7 @@ export const App: React.FC = () => {
           <ConnectionsPage
             user={user}
             token={token}
-            onOpenAuth={() => setIsAuthModalOpen(true)}
+            onOpenAuth={() => setIsOwnerProfileModalOpen(true)}
             language={language}
           />
         )}
@@ -221,7 +267,7 @@ export const App: React.FC = () => {
               setCurrentSection('find-property');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            onOpenAuth={() => setIsAuthModalOpen(true)}
+            onOpenAuth={() => setIsOwnerProfileModalOpen(true)}
             user={user}
             token={token}
           />
@@ -235,7 +281,7 @@ export const App: React.FC = () => {
           <DashboardPage
             user={user}
             token={token}
-            onOpenAuth={() => setIsAuthModalOpen(true)}
+            onOpenAuth={() => setIsOwnerProfileModalOpen(true)}
             language={language}
             onUserUpdate={setUser}
             onNavigate={handleNavigate}
@@ -246,7 +292,7 @@ export const App: React.FC = () => {
           <ListingPropertyPage
             user={user}
             token={token}
-            onOpenAuth={() => setIsAuthModalOpen(true)}
+            onOpenAuth={() => setIsOwnerProfileModalOpen(true)}
             onNavigate={handleNavigate}
             language={language}
           />
@@ -263,12 +309,13 @@ export const App: React.FC = () => {
         language={language}
       />
 
-      {/* Authentication Modal */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onAuthSuccess={handleAuthSuccess}
+      {/* Website Owner Personal Profile & Settings Modal */}
+      <OwnerProfileModal
+        isOpen={isOwnerProfileModalOpen}
+        onClose={() => setIsOwnerProfileModalOpen(false)}
         language={language}
+        onProfileUpdated={handleProfileUpdated}
+        onLanguageChange={handleLanguageChange}
       />
     </div>
   );

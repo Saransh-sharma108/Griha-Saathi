@@ -130,6 +130,30 @@ export const SaathiAiPage: React.FC<SaathiAiPageProps> = ({
     }
   }, []);
 
+  const [sessionId] = useState<string>(() => {
+    const existing = sessionStorage.getItem('gs_saathi_session_id');
+    if (existing) return existing;
+    const newId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    sessionStorage.setItem('gs_saathi_session_id', newId);
+    return newId;
+  });
+
+  const handleFeedback = async (messageId: string, rating: 'helpful' | 'not_relevant' | 'incorrect_information' | 'outdated_information' | 'missing_information') => {
+    try {
+      await fetch('/api/ai/feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ messageId, rating }),
+      });
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, feedbackSubmitted: true } : m));
+    } catch (e) {
+      console.error('Feedback submission failed:', e);
+    }
+  };
+
   const handleSend = async (queryText?: string) => {
     const textToSend = (queryText || inputQuery).trim();
     if (!textToSend || loading) return;
@@ -152,7 +176,7 @@ export const SaathiAiPage: React.FC<SaathiAiPageProps> = ({
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ query: textToSend, language }),
+        body: JSON.stringify({ query: textToSend, language, sessionId }),
       });
       const data = await res.json();
 
@@ -414,13 +438,14 @@ export const SaathiAiPage: React.FC<SaathiAiPageProps> = ({
                   {/* Message Bubble Content */}
                   <div style={{ maxWidth: '85%' }}>
                     <div
+                      className={isUser ? 'gs-chat-bubble-sent' : 'gs-chat-bubble-received'}
                       style={{
                         padding: '1.1rem 1.35rem',
-                        borderRadius: 'var(--gs-radius-lg)',
-                        backgroundColor: isUser ? 'var(--gs-forest-deep)' : 'var(--gs-surface-secondary)',
-                        color: isUser ? '#FFFFFF' : 'var(--gs-text-primary)',
+                        borderRadius: isUser ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                        backgroundColor: isUser ? '#064E3B' : '#10291F',
+                        color: isUser ? '#F4FFF9' : '#E8F2EC',
                         boxShadow: 'var(--gs-shadow-xs)',
-                        border: isUser ? '1px solid var(--gs-accent)' : '1px solid var(--gs-border)',
+                        border: isUser ? '1px solid #168A65' : '1px solid #24513D',
                         lineHeight: 1.6,
                         fontSize: '0.94rem',
                         whiteSpace: 'pre-wrap',
@@ -476,6 +501,12 @@ export const SaathiAiPage: React.FC<SaathiAiPageProps> = ({
                             >
                               {/* Title & Location */}
                               <div>
+                                {card.recommendationScore && (
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', backgroundColor: 'rgba(52, 211, 153, 0.15)', color: '#10B981', border: '1px solid rgba(52, 211, 153, 0.35)', borderRadius: '9999px', padding: '0.15rem 0.5rem', fontSize: '0.72rem', fontWeight: 800, alignSelf: 'flex-start', marginBottom: '0.35rem' }}>
+                                    <Sparkles size={11} />
+                                    <span>{card.recommendationScore.overallScore}% Recommendation Match</span>
+                                  </div>
+                                )}
                                 <div style={{ fontSize: '0.96rem', fontWeight: 700, color: 'var(--gs-text-primary)', marginBottom: '0.2rem' }}>
                                   {card.title}
                                 </div>
@@ -597,6 +628,33 @@ export const SaathiAiPage: React.FC<SaathiAiPageProps> = ({
                             <ArrowRight size={12} />
                           </button>
                         ))}
+                      </div>
+                    )}
+
+                    {/* User Quality Feedback (for assistant messages) */}
+                    {!isUser && msg.id !== 'welcome' && (
+                      <div style={{ marginTop: '0.65rem', paddingTop: '0.45rem', borderTop: '1px solid rgba(255, 255, 255, 0.06)', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--gs-text-muted)' }}>Was this recommendation accurate?</span>
+                        {msg.feedbackSubmitted ? (
+                          <span style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 600 }}>✓ Feedback recorded. Thank you!</span>
+                        ) : (
+                          <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleFeedback(msg.id, 'helpful')}
+                              style={{ padding: '0.15rem 0.45rem', fontSize: '0.7rem', borderRadius: '4px', border: '1px solid var(--gs-border)', backgroundColor: 'transparent', color: 'var(--gs-text-primary)', cursor: 'pointer' }}
+                            >
+                              👍 Helpful
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleFeedback(msg.id, 'incorrect_information')}
+                              style={{ padding: '0.15rem 0.45rem', fontSize: '0.7rem', borderRadius: '4px', border: '1px solid var(--gs-border)', backgroundColor: 'transparent', color: 'var(--gs-text-muted)', cursor: 'pointer' }}
+                            >
+                              ⚠️ Report Issue
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
 

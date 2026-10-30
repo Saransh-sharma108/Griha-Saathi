@@ -1,7 +1,7 @@
+import './loadEnv.js';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
 import { authRouter } from './auth.js';
 import { propertiesRouter } from './properties.js';
 import { verificationsRouter } from './verifications.js';
@@ -9,10 +9,10 @@ import { providersRouter } from './providers.js';
 import { aiRouter } from './ai.js';
 import { connectionsRouter } from './connections.js';
 import { notificationsRouter } from './notifications.js';
-
+import { ownerRouter } from './owner.js';
+import { printStartupGatewayDiagnostic, getMsg91Diagnostic } from './loadEnv.js';
+import { initPostgresPool } from './db/pgPool.js';
 import path from 'path';
-
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -81,6 +81,7 @@ app.use('/api/providers', providersRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/saathi-ai', aiRouter);
 app.use('/api/connections', connectionsRouter);
+app.use('/api/owner', ownerRouter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -95,6 +96,11 @@ app.get('/api/health', (req, res) => {
       targetRegions: ['Jammu & Kashmir', 'Haryana', 'Himachal Pradesh', 'Delhi', 'Punjab'],
     },
   });
+});
+
+// Dedicated MSG91 configuration diagnostic
+app.get('/api/diagnostic/msg91', (req, res) => {
+  res.status(200).json(getMsg91Diagnostic());
 });
 
 // 404 handler for unmapped API routes
@@ -135,7 +141,23 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`[Griha Saathi Server] running on http://localhost:${PORT}`);
-  console.log(`[Data Integrity] Strict zero-synthetic policy active. Initial target regions: Delhi, Haryana, Punjab, HP, J&K.`);
+export { app };
+
+// Auto-initialize PostgreSQL connection pool and migrations if configured
+initPostgresPool().then((connected) => {
+  if (connected) {
+    console.log('[Database] PostgreSQL connection pool active & migrations verified.');
+  } else {
+    console.log('[Database] Persistent atomic disk storage engine active.');
+  }
+}).catch((err) => {
+  console.warn('[Database] Initial pool probe note:', err.message);
 });
+
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`[Griha Saathi Server] running on http://localhost:${PORT}`);
+    console.log(`[Data Integrity] Strict zero-synthetic policy active. Initial target regions: Delhi, Haryana, Punjab, HP, J&K.`);
+    printStartupGatewayDiagnostic();
+  });
+}
